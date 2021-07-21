@@ -54,7 +54,7 @@ class User:
 
         print(owner)
         if owner == None:
-            print (f'User ({self.name}) not found, adding to database')
+            print (f'User {self.name} ({self.email}) not found, adding to database')
             with build_db:
                 build_cursor.execute('INSERT INTO owners VALUES (:user_id, :user_email, :platform)',{'user_id':self.name, 'user_email':self.email, 'platform': platform})
         else:
@@ -76,11 +76,15 @@ class User:
         else:
             return False
 
-def store_build_message(message):
-    pass
+class BuildMessage:
+    def __init__(self,id):
+        pass
 
-def get_build_message(platform,rom_version):
-    pass
+    def store_build_message(self):
+        pass
+
+    def get_build_message(self, platform, rom_version):
+        pass
 
 if(__name__ == "__main__"):
     demo_owners = [ ('Jack', 'jack.tay.little@hpe.com', 'H10'),
