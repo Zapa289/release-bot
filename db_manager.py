@@ -1,7 +1,11 @@
 import sqlite3
+import slack
+import os
 
 build_db = sqlite3.connect('build_database.db')
 build_cursor = build_db.cursor()
+
+client = slack.WebClient(token=os.environ['SLACKBOT_TOKEN'])
 
 #Owner table indexes
 ONWER_USER_ID = 0 
@@ -17,9 +21,15 @@ class UserAlreadyOwner(Exception):
         super().__init__(self.message)
 
 class User:
-    def __init__(self, name, email):
-        self.name = name
-        self.email = email
+    def __init__(self, userId):
+        userInfo = client.users_info(user=userId)
+        userProfile = userInfo.get('profile', "")
+
+        self.name = userProfile.get("real_name", "")
+
+        self.email = userProfile.get("email", "")
+
+        self.is_admin  = self._get_admin()
 
         #list of platforms owned by a user; can be empty
         self.owned_platforms = self._get_owner_platforms()
@@ -43,6 +53,12 @@ class User:
         """
         build_cursor.execute('SELECT * FROM owners WHERE User_id=:user_id AND User_email=:email', {'user_id':self.name, 'email':self.email})
         return build_cursor.fetchone()
+
+    def _get_admin(self):
+        """Returns True if user exists in admins table, otherwise false
+        """
+        build_cursor.execute('SELECT * FROM admins WHERE adminID=:user_id AND User_email=:email', {'user_id':self.name, 'email':self.email})
+        return False if build_cursor.fetchone() == None else True
 
     def register_owner(self, platform):
         """Registers a user as an owner of a platform.
@@ -77,10 +93,10 @@ class BuildMessage:
     def __init__(self,id):
         pass
 
-    def store_build_message(self):
+    def _store_build_message(self):
         pass
 
-    def get_build_message(self, platform, rom_version):
+    def _get_build_message(self, platform, rom_version):
         pass
 
 if(__name__ == "__main__"):
