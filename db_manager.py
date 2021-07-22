@@ -22,9 +22,9 @@ class User:
         self.email = email
 
         #list of platforms owned by a user; can be empty
-        self.owned_platforms = self.get_owner_platforms()
+        self.owned_platforms = self._get_owner_platforms()
 
-    def get_owner_platforms(self):
+    def _get_owner_platforms(self):
         """Get an owner from the database.
 
         Returns None if user is not found.
@@ -36,7 +36,7 @@ class User:
             _, _, platforms = db_owner
             return platforms[OWNER_PLATFORMS].split(', ')
 
-    def find_user(self):
+    def _find_user(self):
         """Get an owner from the database.
 
         Returns None if user is not found.
@@ -50,10 +50,7 @@ class User:
         If a user is already registered then an UserAlreadyOwner exception
         will be raised.
         """
-        owner = self.find_user()
-
-        print(owner)
-        if owner == None:
+        if not self.owned_platforms:
             print (f'User {self.name} ({self.email}) not found, adding to database')
             with build_db:
                 build_cursor.execute('INSERT INTO owners VALUES (:user_id, :user_email, :platform)',{'user_id':self.name, 'user_email':self.email, 'platform': platform})
