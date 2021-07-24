@@ -1,7 +1,6 @@
 import slack
 import os
 import json
-import db_manager
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -10,6 +9,10 @@ from slackeventsapi import SlackEventAdapter
 
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
+
+from db_manager import BuildMessage, User
+
+
 
 TEST_CHANNEL = 'C026CJB5MUM'
 TEST_JENKINS_CHANNEL = 'C026QHP52EP'
@@ -61,6 +64,8 @@ class BuildNotification:
         self.release = build_info.get('release_build_enabled')
         self.sub_id = build_info.get('submission_id')
 
+        self.raw_json = build_info
+        
         self.timestamp = ''
         self.is_prereleased = False
 
@@ -82,7 +87,7 @@ class BuildNotification:
         if self.is_prereleased:
             checkmark = ':white_check_mark:'
 
-        text = f'{checkmark} *Prereleased?*'
+        text = f'*Pre-released to Morpheus* {checkmark} '
         return {
             'type': 'section',
             'text': {
@@ -119,15 +124,19 @@ def process_Jenkins(build_event):
     client.chat_postMessage(channel=channel_id, text='I found a new build! ' +  str(build_info.get('new_rom_version','oops')))
     build_message = BuildNotification(build_info).get_build_message()
     #print(message)
+
+    for platform in build_info.get('platform'):
+        # build_log[platform][build_info.get('new_rom_version')] = build_message
+        # print(build_log[platform][build_info.get('new_rom_version')])
+        #db_manager.store_build_message(build_message)
+        slack_message = BuildMessage(build_info=build_message)
+
     response = client.chat_postMessage(channel=channel_id,**build_message)
     build_message.timestamp = response['ts']
     #
     # log build message for later to update
     #
-    for platform in build_info.get('platform'):
-        # build_log[platform][build_info.get('new_rom_version')] = build_message
-        # print(build_log[platform][build_info.get('new_rom_version')])
-        db_manager.store_build_message(build_message)
+    
 
 
 @slack_event_adapter.on('message')

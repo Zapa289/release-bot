@@ -26,7 +26,6 @@ class User:
         userProfile = userInfo.get('profile', "")
 
         self.name = userProfile.get("real_name", "")
-
         self.email = userProfile.get("email", "")
 
         self.is_admin  = self._get_admin()
@@ -39,11 +38,11 @@ class User:
 
         Returns None if user is not found.
         """
-        db_owner = self.find_user()
-        if db_owner == None:
+        owner = self._find_user()
+        if owner == None:
             return []
         else:
-            _, _, platforms = db_owner
+            _, _, platforms = owner
             return platforms[OWNER_PLATFORMS].split(', ')
 
     def _find_user(self):
