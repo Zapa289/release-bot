@@ -8,9 +8,9 @@ build_cursor = build_db.cursor()
 client = slack.WebClient(token=os.environ['SLACKBOT_TOKEN'])
 
 #Owner table indexes
-ONWER_USER_ID = 0 
-OWNER_USER_EMAIL = 1
-OWNER_PLATFORMS = 2
+# ONWER_USER_ID = 0 
+# OWNER_USER_EMAIL = 1
+# OWNER_PLATFORMS = 2
 
 class DatabaseError(Exception):
     pass
@@ -25,6 +25,7 @@ class User:
         userInfo = client.users_info(user=userId)
         userProfile = userInfo.get('profile', "")
 
+        self.userId = userId
         self.name = userProfile.get("real_name", "")
         self.email = userProfile.get("email", "")
 
@@ -38,25 +39,22 @@ class User:
 
         Returns None if user is not found.
         """
-        owner = self._find_user()
-        if owner == None:
-            return []
-        else:
-            _, _, platforms = owner
-            return platforms[OWNER_PLATFORMS].split(', ')
+        build_cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=:user_id', {'user_id':self.userId})
+        return build_cursor.fetchall()
+
 
     def _find_user(self):
         """Get an owner from the database.
 
         Returns None if user is not found.
         """
-        build_cursor.execute('SELECT * FROM owners WHERE User_id=:user_id AND User_email=:email', {'user_id':self.name, 'email':self.email})
+        build_cursor.execute('SELECT UserId, UserName, UserEmail FROM Owners WHERE UserId=:user_id', {'user_id':self.userId})
         return build_cursor.fetchone()
 
     def _get_admin(self):
         """Returns True if user exists in admins table, otherwise false
         """
-        build_cursor.execute('SELECT * FROM admins WHERE adminID=:user_id AND User_email=:email', {'user_id':self.name, 'email':self.email})
+        build_cursor.execute('SELECT AdminId FROM Admins WHERE AdminID=:user_id', {'user_id':self.userId})
         return False if build_cursor.fetchone() == None else True
 
     def register_owner(self, platform):
@@ -103,7 +101,7 @@ if(__name__ == "__main__"):
                     ('Joe',  'joe@hpe.com', 'U46')]
     for owner in demo_owners:
         user_id, user_email, platforms = owner
-        user = User(user_id, user_email)
+        user = User(user_id)
         try:
             is_owner = user.verify_owner(platforms)
             print(is_owner)
