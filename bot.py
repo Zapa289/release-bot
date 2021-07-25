@@ -22,7 +22,7 @@ slack_event_adapter = SlackEventAdapter(os.environ['SLACKBOT_SIGNING_SECRET'], '
 
 client = slack.WebClient(token=os.environ['SLACKBOT_TOKEN'])
 
-BOT_ID = client.api_call("auth.test")['user_id']
+#BOT_ID = client.api_call("auth.test")['user_id']
 DEMO_JENKINS_MESSAGE = """{
   "end_sha": "89c84c410f8670a15d73e6a90b3f8007efa01cf5",
   "start_sha": "eae54533244881c411add67a7f7b00b57a48584e",
@@ -46,7 +46,7 @@ DEMO_JENKINS_MESSAGE = """{
   "submission_id": "49e2dd7b-ebf1-433b-b6fd-b7793264a485"
 }
 """
-DEMO_PAYLOAD = {'event' : { 'channel' : TEST_JENKINS_CHANNEL, 'user' : BOT_ID, 'text' : DEMO_JENKINS_MESSAGE}}
+#DEMO_PAYLOAD = {'event' : { 'channel' : TEST_JENKINS_CHANNEL, 'user' : BOT_ID, 'text' : DEMO_JENKINS_MESSAGE}}
 # message_counts = {}
 #build_log = {}
 
@@ -144,7 +144,8 @@ def message(payload):
     channel_id = event.get('channel')
     user_id = event.get('user')
     text = event.get('text')
-    
+    BOT_ID = client.api_call("auth.test")['user_id']
+
     if user_id != None and BOT_ID != user_id:
         # if user_id in message_counts:
         #     message_counts[user_id] += 1

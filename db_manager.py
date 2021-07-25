@@ -40,16 +40,16 @@ class User:
         Returns None if user is not found.
         """
         build_cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=:user_id', {'user_id':self.userId})
-        return build_cursor.fetchall()
+        return [plat[0] for plat in build_cursor.fetchall()]
 
 
-    def _find_user(self):
-        """Get an owner from the database.
+    # def _find_user(self):
+    #     """Get an owner from the database.
 
-        Returns None if user is not found.
-        """
-        build_cursor.execute('SELECT UserId, UserName, UserEmail FROM Owners WHERE UserId=:user_id', {'user_id':self.userId})
-        return build_cursor.fetchone()
+    #     Returns None if user is not found.
+    #     """
+    #     build_cursor.execute('SELECT UserId, UserName, UserEmail FROM Owners WHERE UserId=:user_id', {'user_id':self.userId})
+    #     return build_cursor.fetchone()
 
     def _get_admin(self):
         """Returns True if user exists in admins table, otherwise false
@@ -57,8 +57,9 @@ class User:
         build_cursor.execute('SELECT AdminId FROM Admins WHERE AdminID=:user_id', {'user_id':self.userId})
         return False if build_cursor.fetchone() == None else True
 
-    def register_owner(self, platform):
-        """Registers a user as an owner of a platform.
+    def register_owner(self, user, platform):
+        """Registers a user as an owner of a platform. Admins are implied
+        owners of all platforms.
 
         If a user is already registered then an UserAlreadyOwner exception
         will be raised.
@@ -81,10 +82,12 @@ class User:
         """Returns True or False based on if the user is an owner of
         a given platform.
         """
-        if platform in self.owned_platforms:
-            return True
-        else:
-            return False
+        return True if platform in self.owned_platforms else False
+
+        # if platform in self.owned_platforms:
+        #     return True
+        # else:
+        #     return False
 
 class BuildMessage:
     def __init__(self,id):
