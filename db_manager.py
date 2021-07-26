@@ -22,7 +22,11 @@ class UserAlreadyOwner(Exception):
 
 class User:
     def __init__(self, userId):
-        userInfo = client.users_info(user=userId)
+        try:
+            userInfo = client.users_info(user=userId)
+        except slack.errors.SlackApiError:
+            pass
+
         userProfile = userInfo.get('profile', "")
 
         self.userId = userId
@@ -50,7 +54,7 @@ class User:
     #     """
     #     build_cursor.execute('SELECT UserId, UserName, UserEmail FROM Owners WHERE UserId=:user_id', {'user_id':self.userId})
     #     return build_cursor.fetchone()
-
+        
     def _get_admin(self):
         """Returns True if user exists in admins table, otherwise false
         """
@@ -64,19 +68,32 @@ class User:
         If a user is already registered then an UserAlreadyOwner exception
         will be raised.
         """
-        if not self.owned_platforms:
-            print (f'User {self.name} ({self.email}) not found, adding to database')
-            with build_db:
-                build_cursor.execute('INSERT INTO owners VALUES (:user_id, :user_email, :platform)',{'user_id':self.name, 'user_email':self.email, 'platform': platform})
-        else:
-            if platform not in self.owned_platforms:
-                new_plat_list = self.owned_platforms + f', {platform}'
-                print(f'Updating ({self.name}) to have new platform ownership ({new_plat_list})')
+        if self.is_admin:
+            # Admin
+            if user.owned_platforms == []:
+                # Add new user to the User table
                 with build_db:
-                    build_cursor.execute('UPDATE owners SET Platforms=:platforms WHERE User_id=:user_id AND User_email=:user_email',{'user_id': self.name, 'user_email': self.email, 'platforms': new_plat_list} )
-                self.owned_platforms = new_plat_list
-            else:
-                raise UserAlreadyOwner(user, platform)
+                    build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)',{'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
+            # Add platform and user to PlatformOwners table
+            with build_db:
+                build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user.userId))
+        else:
+            # non-admin
+            pass
+
+        # if not self.owned_platforms:
+        #     print (f'User {self.name} ({self.email}) not found, adding to database')
+        #     with build_db:
+        #         build_cursor.execute('INSERT INTO owners VALUES (:user_id, :user_email, :platform)',{'user_id':self.name, 'user_email':self.email, 'platform': platform})
+        # else:
+        #     if platform not in self.owned_platforms:
+        #         new_plat_list = self.owned_platforms + f', {platform}'
+        #         print(f'Updating ({self.name}) to have new platform ownership ({new_plat_list})')
+        #         with build_db:
+        #             build_cursor.execute('UPDATE owners SET Platforms=:platforms WHERE User_id=:user_id AND User_email=:user_email',{'user_id': self.name, 'user_email': self.email, 'platforms': new_plat_list} )
+        #         self.owned_platforms = new_plat_list
+        #     else:
+        #         raise UserAlreadyOwner(user, platform)
 
     def verify_owner(self, platform):
         """Returns True or False based on if the user is an owner of
@@ -88,6 +105,11 @@ class User:
         #     return True
         # else:
         #     return False
+def  find_platform(platform):
+    """Find a platform in PlatformInfo table
+    Return True/False that it exists"""
+    build_cursor.execute('SELECT Platform FROM PlatformInfo WHERE Platform=?', (platform,))
+    return False if build_cursor.fetchone() == None else True
 
 class BuildMessage:
     def __init__(self,id):
