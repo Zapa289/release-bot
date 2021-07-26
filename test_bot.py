@@ -23,6 +23,7 @@ else:
     test_db = sqlite3.connect(':memory:')
 
 cursor = test_db.cursor()
+cursor.execute("PRAGMA foreign_keys = ON")
 
 DEMO_JENKINS_MESSAGE = """{
   "end_sha": "89c84c410f8670a15d73e6a90b3f8007efa01cf5",
@@ -130,35 +131,36 @@ class TestBot(unittest.TestCase):
   
     @patch('db_manager.client')
     def test_admin_User(self, mock_client):
-        # user creation
-        mock_client.users_info.return_value = {'profile':{'real_name':"Jack Little", 'email': 'jack.tay.little@hpe.com'}}
+
+        # admin user creation
+        mock_client.users_info.return_value = {'profile':{'real_name':"Jack Little", 'email': 'jack.tay.little@hpe.com'}, 'id' : 'ABC123'}
         admin = db_manager.User('ABC123')
 
         # multiple owned platforms
-        self.assertEqual(admin._get_owner_platforms(), ['H10', 'U47'])
+        self.assertEqual(admin.get_owner_platforms(), ['H10', 'U47'])
 
         # check admin for admin
         self.assertEqual(admin._get_admin(), True)
 
         # Admin - register owner
-        mock_client.users_info.return_value = {'profile':{'real_name':"Test Register", 'email': 'test_register@hpe.com'}}
+        mock_client.users_info.return_value = {'profile':{'real_name':"Test Register", 'email': 'test_register@hpe.com'}, 'id' : 'TEST'}
         test_register = db_manager.User('TEST')
-        self.assertEqual(test_register._get_owner_platforms(), [])
+        self.assertEqual(test_register.get_owner_platforms(), [])
 
         admin.register_owner(test_register, 'H10')
+        admin.register_owner(test_register, 'U47')
 
-        test_register = db_manager.User('TEST') #re-create the user to update owned platforms
-        self.assertEqual(test_register._get_owner_platforms(), ['H10'])
+        self.assertEqual(test_register.get_owner_platforms(), ['H10', 'U47'])
         
         # Admin - delete user
-        admin.delete_user('TEST')
-        self.assertEqual(test_register._get_owner_platforms(), [])
+        admin.delete_user(test_register)
 
         cursor.execute('SELECT UserId FROM Users WHERE UserId=(?)', (test_register.userId, ))
         self.assertEqual(cursor.fetchone(), None)
 
         cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=(?)', (test_register.userId, ))
         self.assertEqual(cursor.fetchall(), [])
+
         # Admin - register existing owner
         #       Handle UserAlreadyOwner exception
 
@@ -170,19 +172,19 @@ class TestBot(unittest.TestCase):
     @patch('db_manager.client')
     def test_normal_User(self, mock_client):
         # user creation
-        mock_client.users_info.return_value = {'profile':{'real_name':"Jack Whack", 'email': 'jack.3@hpe.com'}}
+        mock_client.users_info.return_value = {'profile':{'real_name':"Jack Whack", 'email': 'jack.3@hpe.com'}, 'id' : 'ABC456'}
         user = db_manager.User('ABC456')
 
         # multiple owned platforms
-        self.assertEqual(user._get_owner_platforms(), ['H10', 'U47'])
+        self.assertEqual(user.get_owner_platforms(), ['H10', 'U47'])
 
         # single owned platform
         user.userId = 'ABC789'
-        self.assertEqual(user._get_owner_platforms(), ['H10'])
+        self.assertEqual(user.get_owner_platforms(), ['H10'])
 
         # no owned platforms
         user.userId = 'FFFFFF'
-        self.assertEqual(user._get_owner_platforms(), [])
+        self.assertEqual(user.get_owner_platforms(), [])
 
         # check admin for admin
         user.userId = 'ABC123'
@@ -205,7 +207,7 @@ class TestBot(unittest.TestCase):
     @patch('db_manager.client')
     def test_create_User(self, mock_client):
         # user creation
-        mock_client.users_info.return_value = {'profile':{'real_name':"Jack Shmack", 'email': 'jack.2@hpe.com'}}
+        mock_client.users_info.return_value = {'profile':{'real_name':"Jack Shmack", 'email': 'jack.2@hpe.com'}, 'id' : 'ABC456'}
         user = db_manager.User('ABC456')
         self.assertEqual(user.name, 'Jack Shmack')
         self.assertEqual(user.email, 'jack.2@hpe.com')

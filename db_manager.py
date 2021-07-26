@@ -4,6 +4,7 @@ import os
 
 build_db = sqlite3.connect('build_database.db')
 build_cursor = build_db.cursor()
+build_cursor.execute("PRAGMA foreign_keys = ON")
 
 client = slack.WebClient(token=os.environ['SLACKBOT_TOKEN'])
 
@@ -12,8 +13,9 @@ client = slack.WebClient(token=os.environ['SLACKBOT_TOKEN'])
 # OWNER_USER_EMAIL = 1
 # OWNER_PLATFORMS = 2
 
-class DatabaseError(Exception):
-    pass
+class UnauthorizedAction(Exception):
+    def __init__(self, message='You do not have permisson to do that'):
+        super().__init__(self.message)
 
 class UserAlreadyOwner(Exception):
     def __init__(self, user_id, platform, message=''):
@@ -29,22 +31,23 @@ class User:
 
         userProfile = userInfo.get('profile', "")
 
-        self.userId = userId
+        self.userId = userInfo.get('id')
         self.name = userProfile.get("real_name", "")
         self.email = userProfile.get("email", "")
 
         self.is_admin  = self._get_admin()
 
         #list of platforms owned by a user; can be empty
-        self.owned_platforms = self._get_owner_platforms()
+        self.get_owner_platforms()
 
-    def _get_owner_platforms(self):
-        """Get an owner from the database.
+    def get_owner_platforms(self):
+        """Get a list of all platforms owned by a user.
 
-        Returns None if user is not found.
+        Returns [] if none.
         """
         build_cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=:user_id', {'user_id':self.userId})
-        return [plat[0] for plat in build_cursor.fetchall()]
+        self.owned_platforms = [plat[0] for plat in build_cursor.fetchall()]
+        return self.owned_platforms
 
 
     # def _find_user(self):
@@ -73,7 +76,12 @@ class User:
             if user.owned_platforms == []:
                 # Add new user to the User table
                 with build_db:
-                    build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)',{'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
+                    try:
+                        build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
+                    except sqlite3.IntegrityError:
+                        pass
+                user.owned_platforms = user.owned_platforms.append(platform)
+
             # Add platform and user to PlatformOwners table
             with build_db:
                 build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user.userId))
@@ -105,6 +113,18 @@ class User:
         #     return True
         # else:
         #     return False
+
+    def delete_user(self, user):
+        """Delete User from database.
+        
+        Will destroy all records in PlatformOwners belonging to the User"""
+        if not self.is_admin:
+            raise UnauthorizedAction(message=f'User {self.name} (user ID : {self.userId}) does not have permission to delete a user') 
+
+        with build_db: 
+            build_cursor.execute('DELETE FROM Users WHERE UserId=:userId', {'userId' : user.userId})
+        
+
 def  find_platform(platform):
     """Find a platform in PlatformInfo table
     Return True/False that it exists"""
