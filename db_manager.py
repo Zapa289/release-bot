@@ -15,11 +15,14 @@ client = slack.WebClient(token=os.environ['SLACKBOT_TOKEN'])
 
 class UnauthorizedAction(Exception):
     def __init__(self, message='You do not have permisson to do that'):
+        self.message = message
         super().__init__(self.message)
 
 class UserAlreadyOwner(Exception):
-    def __init__(self, user_id, platform, message=''):
-        self.message = f'User ({user_id}) is already an owner of {platform}'
+    def __init__(self, userId, platform, message='User is already an owner of that platform'):
+        self.message = message
+        self.userId = userId
+        self.platform = platform
         super().__init__(self.message)
 
 class User:
@@ -71,8 +74,30 @@ class User:
         If a user is already registered then an UserAlreadyOwner exception
         will be raised.
         """
-        if self.is_admin:
-            # Admin
+        # if self.is_admin:
+        #     # Admin
+        #     if user.owned_platforms == []:
+        #         # Add new user to the User table
+        #         with build_db:
+        #             try:
+        #                 build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
+        #             except sqlite3.IntegrityError:
+        #                 pass
+
+        #     # Add platform and user to PlatformOwners table
+        #     with build_db:
+        #         build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user.userId))
+
+        #     user.owned_platforms = user.owned_platforms.append(platform)
+
+        # else:
+
+        if not self.is_admin and (platform not in self.owned_platforms):
+            raise UnauthorizedAction(message=f'User {self.name} (ID: {self.userId}) does not have permission to register a user to platform "{platform}"')
+        else:
+            
+            if platform in user.owned_platforms:
+                raise UserAlreadyOwner(userId=user.userId, platform=platform, message=f'User {user.name} (ID: {user.userId}) is already an owner of platform "{platform}"')
             if user.owned_platforms == []:
                 # Add new user to the User table
                 with build_db:
@@ -80,28 +105,12 @@ class User:
                         build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
                     except sqlite3.IntegrityError:
                         pass
-                user.owned_platforms = user.owned_platforms.append(platform)
-
             # Add platform and user to PlatformOwners table
             with build_db:
                 build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user.userId))
-        else:
-            # non-admin
-            pass
-
-        # if not self.owned_platforms:
-        #     print (f'User {self.name} ({self.email}) not found, adding to database')
-        #     with build_db:
-        #         build_cursor.execute('INSERT INTO owners VALUES (:user_id, :user_email, :platform)',{'user_id':self.name, 'user_email':self.email, 'platform': platform})
-        # else:
-        #     if platform not in self.owned_platforms:
-        #         new_plat_list = self.owned_platforms + f', {platform}'
-        #         print(f'Updating ({self.name}) to have new platform ownership ({new_plat_list})')
-        #         with build_db:
-        #             build_cursor.execute('UPDATE owners SET Platforms=:platforms WHERE User_id=:user_id AND User_email=:user_email',{'user_id': self.name, 'user_email': self.email, 'platforms': new_plat_list} )
-        #         self.owned_platforms = new_plat_list
-        #     else:
-        #         raise UserAlreadyOwner(user, platform)
+                    
+                user.owned_platforms = user.owned_platforms.append(platform)
+                
 
     def verify_owner(self, platform):
         """Returns True or False based on if the user is an owner of
@@ -142,16 +151,7 @@ class BuildMessage:
         pass
 
 if(__name__ == "__main__"):
-    demo_owners = [ ('Jack', 'jack.tay.little@hpe.com', 'H10'),
-                    ('Joe',  'joe@hpe.com', 'U46')]
-    for owner in demo_owners:
-        user_id, user_email, platforms = owner
-        user = User(user_id)
-        try:
-            is_owner = user.verify_owner(platforms)
-            print(is_owner)
-        except UserAlreadyOwner:
-            print(f'User ({user_id}) already in data base for platform "{platforms}"')
+    pass
 
 
 

@@ -1,11 +1,10 @@
 import unittest
-import json
 import sqlite3
 
 from unittest.mock import patch
 
 from bot import BuildNotification, BuildMessage
-from db_manager import UserAlreadyOwner
+from db_manager import UnauthorizedAction, UserAlreadyOwner
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -116,9 +115,20 @@ class TestBot(unittest.TestCase):
                 cursor.execute("INSERT INTO PlatformOwners (Platform, UserId) VALUES ('U47','ABC456')")
                 cursor.execute("INSERT INTO PlatformOwners (Platform, UserId) VALUES ('U47','ABCDEF')")       
 
-    def setUp(self):
-        pass
+    @patch('db_manager.client')
+    def setUp(self, mock_client):
+        mock_client.users_info.return_value = {'profile':{'real_name':"Test User", 'email': 'test_user@hpe.com'}, 'id' : 'TEST'}
+        self.test_user = db_manager.User('TEST')
+
   
+    def tearDown(self):
+        pass
+        # with test_db:
+        #     try:
+        #         cursor.execute('DELETE FROM Users WHERE UserId="TEST"')
+        #     except :
+        #         pass
+
     def test_get_build_info(self):
         self.test_build_dict = BUILD_DICT
         testBuild = BuildNotification(self.test_build_dict)
@@ -143,27 +153,28 @@ class TestBot(unittest.TestCase):
         self.assertEqual(admin._get_admin(), True)
 
         # Admin - register owner
-        mock_client.users_info.return_value = {'profile':{'real_name':"Test Register", 'email': 'test_register@hpe.com'}, 'id' : 'TEST'}
-        test_register = db_manager.User('TEST')
-        self.assertEqual(test_register.get_owner_platforms(), [])
+        # mock_client.users_info.return_value = {'profile':{'real_name':"Test Register", 'email': 'test_register@hpe.com'}, 'id' : 'TEST'}
+        # test_register = db_manager.User('TEST')
+        self.assertEqual(self.test_user.get_owner_platforms(), [])
 
-        admin.register_owner(test_register, 'H10')
-        admin.register_owner(test_register, 'U47')
-
-        self.assertEqual(test_register.get_owner_platforms(), ['H10', 'U47'])
+        admin.register_owner(self.test_user, 'H10')
+        self.assertEqual(self.test_user.get_owner_platforms(), ['H10'])
+        admin.register_owner(self.test_user, 'U47')
+        self.assertEqual(self.test_user.get_owner_platforms(), ['H10', 'U47'])
         
-        # Admin - delete user
-        admin.delete_user(test_register)
-
-        cursor.execute('SELECT UserId FROM Users WHERE UserId=(?)', (test_register.userId, ))
-        self.assertEqual(cursor.fetchone(), None)
-
-        cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=(?)', (test_register.userId, ))
-        self.assertEqual(cursor.fetchall(), [])
-
         # Admin - register existing owner
         #       Handle UserAlreadyOwner exception
+        with self.assertRaises(UserAlreadyOwner):
+            admin.register_owner(self.test_user, 'H10')
 
+        # Admin - delete user
+        admin.delete_user(self.test_user)
+
+        cursor.execute('SELECT UserId FROM Users WHERE UserId=(?)', (self.test_user.userId, ))
+        self.assertEqual(cursor.fetchone(), None)
+
+        cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=(?)', (self.test_user.userId, ))
+        self.assertEqual(cursor.fetchall(), [])
 
         # Admin - register owner for platform not in DB
         #       Should allow the new platform to be inserted 
@@ -171,38 +182,47 @@ class TestBot(unittest.TestCase):
 
     @patch('db_manager.client')
     def test_normal_User(self, mock_client):
-        # user creation
+        
+        # Owner and test owner creation
         mock_client.users_info.return_value = {'profile':{'real_name':"Jack Whack", 'email': 'jack.3@hpe.com'}, 'id' : 'ABC456'}
         user = db_manager.User('ABC456')
+        # mock_client.users_info.return_value = {'profile':{'real_name':"TEST2 Guy", 'email': 'TEST2.com'}, 'id' : 'TEST2'}
+        # test = db_manager.User('TEST2')
 
         # multiple owned platforms
         self.assertEqual(user.get_owner_platforms(), ['H10', 'U47'])
 
+        # no owned platforms
+        self.assertEqual(self.test_user.get_owner_platforms(), [])
+        
         # single owned platform
         user.userId = 'ABC789'
         self.assertEqual(user.get_owner_platforms(), ['H10'])
 
-        # no owned platforms
-        user.userId = 'FFFFFF'
-        self.assertEqual(user.get_owner_platforms(), [])
-
-        # check admin for admin
-        user.userId = 'ABC123'
-        self.assertEqual(user._get_admin(), True)
-
         # check admin for non-admin
-        user.userId = 'ABC456'
         self.assertEqual(user._get_admin(), False)
 
-        # register platform as Admin
+        # register user for platform as Owner
+        user.register_owner(self.test_user, 'H10')
+        cursor.execute('SELECT UserId FROM PlatformOwners WHERE UserId="TEST" AND Platform="H10"')
+        self.assertEqual(cursor.fetchone(), ('TEST', ))
 
-        # register platform as Owner
+        # register user again
+        #       Should raise UserAlreadyOwner
+        with self.assertRaises(UserAlreadyOwner):
+            user.register_owner(self.test_user, 'H10')
 
-        # register platform as non-Owner
+        # register user for platform as non-Owner
+        #       Should raise UnauthorizedAction
+        with self.assertRaises(UnauthorizedAction):
+            user.register_owner(self.test_user, 'U47')
+
+        cursor.execute('DELETE FROM Users WHERE UserId="TEST"')
 
         # register existing platform
 
         # register platform not in DB
+
 
     @patch('db_manager.client')
     def test_create_User(self, mock_client):
