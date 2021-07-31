@@ -25,6 +25,12 @@ class UserAlreadyOwner(Exception):
         self.platform = platform
         super().__init__(self.message)
 
+class PlatformError(Exception):
+    def __init__(self, platform, message='Error performing platform action'):
+        self.message = message
+        self.platform = platform
+        super().__init__(self.message)
+
 class User:
     def __init__(self, userId):
         try:
@@ -34,9 +40,9 @@ class User:
 
         userProfile = userInfo.get('profile', "")
 
-        self.userId = userInfo.get('id')
-        self.name = userProfile.get("real_name", "")
-        self.email = userProfile.get("email", "")
+        self.userId =   userInfo.get('id')
+        self.name =     userProfile.get("real_name", "")
+        self.email =    userProfile.get("email", "")
 
         self.is_admin  = self._get_admin()
 
@@ -74,42 +80,25 @@ class User:
         If a user is already registered then an UserAlreadyOwner exception
         will be raised.
         """
-        # if self.is_admin:
-        #     # Admin
-        #     if user.owned_platforms == []:
-        #         # Add new user to the User table
-        #         with build_db:
-        #             try:
-        #                 build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
-        #             except sqlite3.IntegrityError:
-        #                 pass
-
-        #     # Add platform and user to PlatformOwners table
-        #     with build_db:
-        #         build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user.userId))
-
-        #     user.owned_platforms = user.owned_platforms.append(platform)
-
-        # else:
 
         if not self.is_admin and (platform not in self.owned_platforms):
             raise UnauthorizedAction(message=f'User {self.name} (ID: {self.userId}) does not have permission to register a user to platform "{platform}"')
-        else:
-            
-            if platform in user.owned_platforms:
-                raise UserAlreadyOwner(userId=user.userId, platform=platform, message=f'User {user.name} (ID: {user.userId}) is already an owner of platform "{platform}"')
-            if user.owned_platforms == []:
-                # Add new user to the User table
-                with build_db:
-                    try:
-                        build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
-                    except sqlite3.IntegrityError:
-                        pass
-            # Add platform and user to PlatformOwners table
+        if not find_platform(platform):
+            raise PlatformError(platform,message=f'Platform "{platform}"" is no in the database. Cannot register user')
+        if platform in user.owned_platforms:
+            raise UserAlreadyOwner(userId=user.userId, platform=platform, message=f'User {user.name} (ID: {user.userId}) is already an owner of platform "{platform}"')
+        
+        if user.owned_platforms == []:
+            # Add new user to the User table
             with build_db:
-                build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user.userId))
-                    
-                user.owned_platforms = user.owned_platforms.append(platform)
+                try:
+                    build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
+                except sqlite3.IntegrityError:
+                    pass
+        # Add platform and user to PlatformOwners table
+        with build_db:
+            build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user.userId))
+            user.owned_platforms.append(platform)
                 
 
     def verify_owner(self, platform):
@@ -118,27 +107,53 @@ class User:
         """
         return True if platform in self.owned_platforms else False
 
-        # if platform in self.owned_platforms:
-        #     return True
-        # else:
-        #     return False
-
     def delete_user(self, user):
         """Delete User from database.
         
         Will destroy all records in PlatformOwners belonging to the User"""
-        if not self.is_admin:
-            raise UnauthorizedAction(message=f'User {self.name} (user ID : {self.userId}) does not have permission to delete a user') 
-
+        
+        self.admin_access('delete a user')
         with build_db: 
             build_cursor.execute('DELETE FROM Users WHERE UserId=:userId', {'userId' : user.userId})
         
+    def register_platform(self, platform, platformString):
+
+        self.admin_access('register a platform')
+        if find_platform(platform):
+            raise PlatformError(platform, message=f'Platform "{platform}" already exists in the database')
+
+        build_cursor.execute('INSERT INTO PlatformInfo (Platform, IdString) VALUES (?,?)', (platform, platformString))
+
+    def delete_platform(self, platform):
+        self.admin_access(f'delete platform {platform}')
+        if not find_platform(platform):
+            raise PlatformError(platform, message=f'Platform "{platform}" does not exist in database')
+
+        with build_db: 
+            build_cursor.execute('DELETE FROM PlatformInfo WHERE Platform=:platform', {'platform' : platform})
+
+    def admin_access(self, action='do that'):
+        """Check for admin priveledges
+
+        Args:
+            action (str, optional): Brief description of user action. Defaults to 'do that'.
+
+        Raises:
+            UnauthorizedAction: Error for unauthorized actions
+        """
+        if not self.is_admin:
+            raise UnauthorizedAction(message=f'User {self.name} (user ID : {self.userId}) does not have permission to {action}') 
+
 
 def  find_platform(platform):
     """Find a platform in PlatformInfo table
+
     Return True/False that it exists"""
     build_cursor.execute('SELECT Platform FROM PlatformInfo WHERE Platform=?', (platform,))
     return False if build_cursor.fetchone() == None else True
+
+def scrub_db():
+    pass
 
 class BuildMessage:
     def __init__(self,id):
