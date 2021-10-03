@@ -1,26 +1,10 @@
-import slack
-import os
 import json
+import slack_client
 
-from pathlib import Path
-from dotenv import load_dotenv
-env_path = Path('.') / '.env'
-load_dotenv(dotenv_path=env_path)
+from flask import request, Response
 
-from flask import Flask, request, Response
-from slackeventsapi import SlackEventAdapter
-from db_manager import BuildMessage, User
-
-
-
-TEST_CHANNEL = 'C026CJB5MUM'
-TEST_JENKINS_CHANNEL = 'C026QHP52EP'
-TEST_JENKINS_BOT = 'C026QHP52EP' # my ID
-
-app = Flask(__name__)
-slack_event_adapter = SlackEventAdapter(os.environ['SLACKBOT_SIGNING_SECRET'], '/slack/events', app)
-
-client = slack.WebClient(token=os.environ['SLACKBOT_TOKEN'])
+from BuildMessage import BuildNotification, BuildMessage
+from user import UserManager
 
 #BOT_ID = client.api_call("auth.test")['user_id']
 DEMO_JENKINS_MESSAGE = """{
@@ -47,80 +31,17 @@ DEMO_JENKINS_MESSAGE = """{
 }
 """
 #DEMO_PAYLOAD = {'event' : { 'channel' : TEST_JENKINS_CHANNEL, 'user' : BOT_ID, 'text' : DEMO_JENKINS_MESSAGE}}
-# message_counts = {}
-#build_log = {}
 
-class BuildNotification:
-    DIVIDER = {'type': 'divider'}
-
-    def __init__(self, build_info):
-        self.branch = build_info.get('branch')
-        self.platforms = build_info.get('platform')
-        self.new_rom_version = build_info.get('new_rom_version')
-        self.parent_version = build_info.get('parent_rom_version')
-        self.rom_type = build_info.get('rom_type')
-        self.user_email = build_info.get('user_email')
-        self.release = build_info.get('release_build_enabled')
-        self.sub_id = build_info.get('submission_id')
-
-        self.raw_json = build_info
-        
-        self.timestamp = ''
-        self.is_prereleased = False
-
-    def get_build_message(self):
-        return { 
-            'ts': self.timestamp,
-            'blocks' : [
-                #self.START_TEXT,
-                self.DIVIDER,
-                self._get_build_info(),
-                self.DIVIDER,
-                self._get_MAT_Status(),
-                self.DIVIDER
-            ] 
-        }
-
-    def _get_MAT_Status(self):
-        checkmark = ':x:'
-        if self.is_prereleased:
-            checkmark = ':white_check_mark:'
-
-        text = f'*Pre-released to Morpheus* {checkmark} '
-        return {
-            'type': 'section',
-            'text': {
-                'type' : 'mrkdwn',
-                'text': text
-            }
-        }
-    
-    def _get_build_info(self):
-        if len(self.platforms) > 1:
-            text = '*'
-            for platform in self.platforms:
-                if self.platforms.index(platform) != 0:
-                    text += ', '
-                text += f'{platform}'
-            text += ' builds complete*\n'
-        else: 
-            text =  f'*{self.platforms[0]} build complete*\n'
-        text = text + f'Build version: {self.new_rom_version}'
-        return {
-            'type': 'section',
-            'text': {
-                'type' : 'mrkdwn',
-                'text'  : text
-            }
-        }    
+user_manager = UserManager()
 
 def process_Jenkins(build_event):
     event = build_event.get('event', {})
     channel_id = event.get('channel')
     #build_info = json.loads(event.get('text'))
     build_info = json.loads(DEMO_JENKINS_MESSAGE)  
-  
-    client.chat_postMessage(channel=channel_id, text='I found a new build! ' +  str(build_info.get('new_rom_version','oops')))
+
+    message = 'I found a new build! ' +  str(build_info.get('new_rom_version','oops'))
+    slack.write_message(channel=channel_id, message=message)
     build_message = BuildNotification(build_info).get_build_message()
     #print(message)
 
@@ -128,23 +49,21 @@ def process_Jenkins(build_event):
         # build_log[platform][build_info.get('new_rom_version')] = build_message
         # print(build_log[platform][build_info.get('new_rom_version')])
         #db_manager.store_build_message(build_message)
-        slack_message = BuildMessage(build_info=build_message)
+        slack_message = BuildMessage(build_message=build_message)
 
-    response = client.chat_postMessage(channel=channel_id,**build_message)
+    response = slack_client.client.chat_postMessage(channel=channel_id,**build_message)
     build_message.timestamp = response['ts']
     #
     # log build message for later to update
     #
-    
 
-
-@slack_event_adapter.on('message')
+@slack_client.slack_event_adapter.on('message')
 def message(payload):
     event = payload.get('event', {})
     channel_id = event.get('channel')
     user_id = event.get('user')
     text = event.get('text')
-    BOT_ID = client.api_call("auth.test")['user_id']
+    BOT_ID = slack_client.client.api_call("auth.test")['user_id']
 
     if user_id != None and BOT_ID != user_id:
         # if user_id in message_counts:
@@ -152,25 +71,22 @@ def message(payload):
         # else:
         #     message_counts[user_id] = 1
 
-        if channel_id == TEST_JENKINS_CHANNEL:
+        if channel_id == slack_client.TEST_JENKINS_CHANNEL:
             if text.lower() == "demo":
                 process_Jenkins(payload)
 
-@slack_event_adapter.on('reaction_added')
+@slack_client.slack_event_adapter.on('reaction_added')
 def reaction_added(payload):
     event = payload.get('event', {})
     channel_id = event.get('item', {}).get('channel')
     user_id = event.get('user')
     used_on_id = event.get('item_user')
 
-    if channel_id != TEST_JENKINS_CHANNEL:
+    if channel_id != slack_client.TEST_JENKINS_CHANNEL:
         return
     #
     # check for user permission
     #
-
-
-
 
 # @app.route('/message-count', methods=['POST'])
 # def message_count():
@@ -182,7 +98,7 @@ def reaction_added(payload):
 #         client.chat_postMessage(channel=channel_id, text=f'Message Count: {message_counts[user_id]}')
 #     return Response(), 200
 
-@app.route('/register-Owner', methods=['POST'])
+@slack_client.app.route('/register-Owner', methods=['POST'])
 def register_owner():
     data = request.form
     userData = data.get('text')
@@ -192,6 +108,9 @@ def register_owner():
         response = Response()
 
 
+def main():
+    slack_client.app.run(debug=True)
+
 if(__name__ == "__main__"):
-    app.run(debug=True)
+    main()
      

@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from bot import BuildNotification, BuildMessage
 from db_manager import UnauthorizedAction, UserAlreadyOwner
+from user import User
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -118,7 +119,7 @@ class TestBot(unittest.TestCase):
     @patch('db_manager.client')
     def setUp(self, mock_client):
         mock_client.users_info.return_value = {'profile':{'real_name':"Test User", 'email': 'test_user@hpe.com'}, 'id' : 'TEST'}
-        self.test_user = db_manager.User('TEST')
+        self.test_user = User('TEST')
 
   
     def tearDown(self):

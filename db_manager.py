@@ -1,161 +1,82 @@
 import sqlite3
-import slack
-import os
+from typing import List
+from enum import Enum, auto
 
-build_db = sqlite3.connect('build_database.db')
-build_cursor = build_db.cursor()
-build_cursor.execute("PRAGMA foreign_keys = ON")
-
-client = slack.WebClient(token=os.environ['SLACKBOT_TOKEN'])
-
-#Owner table indexes
-# ONWER_USER_ID = 0 
-# OWNER_USER_EMAIL = 1
-# OWNER_PLATFORMS = 2
-
-class UnauthorizedAction(Exception):
-    def __init__(self, message='You do not have permisson to do that'):
-        self.message = message
-        super().__init__(self.message)
-
-class UserAlreadyOwner(Exception):
-    def __init__(self, userId, platform, message='User is already an owner of that platform'):
-        self.message = message
-        self.userId = userId
-        self.platform = platform
-        super().__init__(self.message)
-
-class User:
-    def __init__(self, userId):
-        try:
-            userInfo = client.users_info(user=userId)
-        except slack.errors.SlackApiError:
-            pass
-
-        userProfile = userInfo.get('profile', "")
-
-        self.userId = userInfo.get('id')
-        self.name = userProfile.get("real_name", "")
-        self.email = userProfile.get("email", "")
-
-        self.is_admin  = self._get_admin()
-
-        #list of platforms owned by a user; can be empty
-        self.get_owner_platforms()
-
-    def get_owner_platforms(self):
-        """Get a list of all platforms owned by a user.
-
-        Returns [] if none.
-        """
-        build_cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=:user_id', {'user_id':self.userId})
-        self.owned_platforms = [plat[0] for plat in build_cursor.fetchall()]
-        return self.owned_platforms
-
-
-    # def _find_user(self):
-    #     """Get an owner from the database.
-
-    #     Returns None if user is not found.
-    #     """
-    #     build_cursor.execute('SELECT UserId, UserName, UserEmail FROM Owners WHERE UserId=:user_id', {'user_id':self.userId})
-    #     return build_cursor.fetchone()
+# Describes the form of all the tables in the database
+class PlatformOwnersEnum(Enum):
+    Platform = 0
+    UserId = auto()
         
-    def _get_admin(self):
+class UsersEnum(Enum):
+    UserId = 0
+    UserName = auto()
+    UserEmail = auto()
+
+class AdminsEnum(Enum):
+    AdminId = 0
+    AdminName = auto()
+    AdminEmail = auto()
+
+class PlatformInfoEnum(Enum):
+    Platform = 0
+    ChannelId = auto()
+
+class Auth:
+    def __init__(self):
+        pass
+    
+class DatabaseAccess:
+    def __init__(self):
+        self.build_db = sqlite3.connect('build_database.db')
+        self.build_cursor = self.build_db.cursor()
+
+        self.build_cursor.execute("PRAGMA foreign_keys = ON")
+
+    def find_platform(self, platform) -> bool:
+        """Find a platform in PlatformInfo table
+        Return True/False that it exists"""
+        self.build_cursor.execute('SELECT Platform FROM PlatformInfo WHERE Platform=?', (platform,))
+
+        return self.build_cursor.fetchone() != None
+
+    def get_admin(self, userId) -> bool:
         """Returns True if user exists in admins table, otherwise false
         """
-        build_cursor.execute('SELECT AdminId FROM Admins WHERE AdminID=:user_id', {'user_id':self.userId})
-        return False if build_cursor.fetchone() == None else True
+        self.build_cursor.execute('SELECT AdminId FROM Admins WHERE AdminID=:user_id', {'user_id':userId})
+        return self.build_cursor.fetchone() != None
 
-    def register_owner(self, user, platform):
-        """Registers a user as an owner of a platform. Admins are implied
-        owners of all platforms.
+    def get_admin_list(self) -> List[str]:
+        """Returns a list of user IDs of all Admins"""
+        self.build_cursor.execute('SELECT AdminId FROM Admins')
+        return [admin for admin, in self.build_cursor.fetchall()]
 
-        If a user is already registered then an UserAlreadyOwner exception
-        will be raised.
+    def get_owner_platforms(self, userId) -> List[str]:
+        """Get a list of all platforms owned by a user.
         """
-        # if self.is_admin:
-        #     # Admin
-        #     if user.owned_platforms == []:
-        #         # Add new user to the User table
-        #         with build_db:
-        #             try:
-        #                 build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
-        #             except sqlite3.IntegrityError:
-        #                 pass
-
-        #     # Add platform and user to PlatformOwners table
-        #     with build_db:
-        #         build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user.userId))
-
-        #     user.owned_platforms = user.owned_platforms.append(platform)
-
-        # else:
-
-        if not self.is_admin and (platform not in self.owned_platforms):
-            raise UnauthorizedAction(message=f'User {self.name} (ID: {self.userId}) does not have permission to register a user to platform "{platform}"')
-        else:
-            
-            if platform in user.owned_platforms:
-                raise UserAlreadyOwner(userId=user.userId, platform=platform, message=f'User {user.name} (ID: {user.userId}) is already an owner of platform "{platform}"')
-            if user.owned_platforms == []:
-                # Add new user to the User table
-                with build_db:
-                    try:
-                        build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user.userId, 'user_name':user.name, 'user_email': user.email})
-                    except sqlite3.IntegrityError:
-                        pass
-            # Add platform and user to PlatformOwners table
-            with build_db:
-                build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user.userId))
-                    
-                user.owned_platforms = user.owned_platforms.append(platform)
-                
-
-    def verify_owner(self, platform):
-        """Returns True or False based on if the user is an owner of
-        a given platform.
+        self.build_cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=:user_id', {'user_id':userId})
+        return [plat for plat, in self.build_cursor.fetchall()]
+    
+    def register_owner(self, userId, platform):
+        """Registers a user as an owner of a platform in PlatformOwners
         """
-        return True if platform in self.owned_platforms else False
+        # Add platform and user to PlatformOwners table
+        with self.build_db:
+            self.build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, userId))    
 
-        # if platform in self.owned_platforms:
-        #     return True
-        # else:
-        #     return False
+    def add_user(self, userId: str, name: str, email: str):
+        """Add user to Users table"""
+        with self.build_db:
+            self.build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':userId, 'user_name':name, 'user_email': email})
 
-    def delete_user(self, user):
-        """Delete User from database.
-        
-        Will destroy all records in PlatformOwners belonging to the User"""
-        if not self.is_admin:
-            raise UnauthorizedAction(message=f'User {self.name} (user ID : {self.userId}) does not have permission to delete a user') 
+    def delete_user(self, userId: str):
+        """Delete User from database. Foreign key management will destroy all ownership data in PlatformOwners"""
 
-        with build_db: 
-            build_cursor.execute('DELETE FROM Users WHERE UserId=:userId', {'userId' : user.userId})
-        
+        with self.build_db: 
+            self.build_cursor.execute('DELETE FROM Users WHERE UserId=:userId', {'userId' : userId})
 
-def  find_platform(platform):
-    """Find a platform in PlatformInfo table
-    Return True/False that it exists"""
-    build_cursor.execute('SELECT Platform FROM PlatformInfo WHERE Platform=?', (platform,))
-    return False if build_cursor.fetchone() == None else True
 
-class BuildMessage:
-    def __init__(self,id):
-        pass
-
-    def _store_build_message(self):
-        pass
-
-    def _get_build_message(self, platform, rom_version):
-        pass
-
-if(__name__ == "__main__"):
+def main():
     pass
-
-
-
-
     # build_cursor.execute("""
     #     CREATE TABLE "build_database" (
     #     "Build_ID"	INTEGER UNIQUE,
@@ -185,3 +106,7 @@ if(__name__ == "__main__"):
     #     """)
 
     # build_db.close()
+
+if(__name__ == "__main__"):
+    main()
+
