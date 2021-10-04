@@ -1,10 +1,11 @@
+from auth import AuthOwner, AuthAdmin
 import json
 import slack_client
 
 from flask import request, Response
 
 from BuildMessage import BuildNotification, BuildMessage
-from user import UserManager
+from manager import BotManager
 
 #BOT_ID = client.api_call("auth.test")['user_id']
 DEMO_JENKINS_MESSAGE = """{
@@ -32,7 +33,7 @@ DEMO_JENKINS_MESSAGE = """{
 """
 #DEMO_PAYLOAD = {'event' : { 'channel' : TEST_JENKINS_CHANNEL, 'user' : BOT_ID, 'text' : DEMO_JENKINS_MESSAGE}}
 
-user_manager = UserManager()
+manager = BotManager()
 
 def process_Jenkins(build_event):
     event = build_event.get('event', {})
@@ -41,7 +42,7 @@ def process_Jenkins(build_event):
     build_info = json.loads(DEMO_JENKINS_MESSAGE)  
 
     message = 'I found a new build! ' +  str(build_info.get('new_rom_version','oops'))
-    slack.write_message(channel=channel_id, message=message)
+    manager.slack.write_message(channel=channel_id, message=message)
     build_message = BuildNotification(build_info).get_build_message()
     #print(message)
 
@@ -104,8 +105,14 @@ def register_owner():
     userData = data.get('text')
     user_id = data.get('user_id')
 
+    owner = manager.create_User(user_id)
+    user = None
+    platform = None
+
     if 'help' in userData:
         response = Response()
+
+    manager.register_owner(owner, user, platform, AuthOwner())
 
 
 def main():

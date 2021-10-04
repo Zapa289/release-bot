@@ -1,36 +1,14 @@
 import sqlite3
 from typing import List
-from enum import Enum, auto
-
-# Describes the form of all the tables in the database
-class PlatformOwnersEnum(Enum):
-    Platform = 0
-    UserId = auto()
-        
-class UsersEnum(Enum):
-    UserId = 0
-    UserName = auto()
-    UserEmail = auto()
-
-class AdminsEnum(Enum):
-    AdminId = 0
-    AdminName = auto()
-    AdminEmail = auto()
-
-class PlatformInfoEnum(Enum):
-    Platform = 0
-    ChannelId = auto()
-
-class Auth:
-    def __init__(self):
-        pass
     
 class DatabaseAccess:
-    def __init__(self):
-        self.build_db = sqlite3.connect('build_database.db')
+    def __init__(self, database: str):
+        self.build_db = sqlite3.connect(database)
         self.build_cursor = self.build_db.cursor()
 
         self.build_cursor.execute("PRAGMA foreign_keys = ON")
+
+        self.adminIds = self.get_admin_list()
 
     def find_platform(self, platform) -> bool:
         """Find a platform in PlatformInfo table
@@ -39,16 +17,20 @@ class DatabaseAccess:
 
         return self.build_cursor.fetchone() != None
 
-    def get_admin(self, userId) -> bool:
-        """Returns True if user exists in admins table, otherwise false
-        """
-        self.build_cursor.execute('SELECT AdminId FROM Admins WHERE AdminID=:user_id', {'user_id':userId})
-        return self.build_cursor.fetchone() != None
+    # def get_admin(self, userId) -> bool:
+    #     """Returns True if user exists in admins table, otherwise false
+    #     """
+    #     self.build_cursor.execute('SELECT AdminId FROM Admins WHERE AdminID=:user_id', {'user_id':userId})
+    #     return self.build_cursor.fetchone() != None
 
     def get_admin_list(self) -> List[str]:
         """Returns a list of user IDs of all Admins"""
         self.build_cursor.execute('SELECT AdminId FROM Admins')
         return [admin for admin, in self.build_cursor.fetchall()]
+
+    def get_admin(self, userId) -> bool:
+        """Return if user ID is in list of admins"""
+        return userId in self.adminIds
 
     def get_owner_platforms(self, userId) -> List[str]:
         """Get a list of all platforms owned by a user.
