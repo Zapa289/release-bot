@@ -1,8 +1,16 @@
-from auth import Authorizer
-from typing import List
+from dataclasses import dataclass
+from typing import Optional
+from auth import Authorizer, UnauthorizedAction
 from db_manager import DatabaseAccess
 from slack_client import SlackManager
 from user import User
+
+@dataclass
+class CommandData:
+    auth: Authorizer
+    caller: User
+    user: Optional[User]
+    platform: Optional[str]
 
 class BotManager:
     def __init__(self):
@@ -15,7 +23,7 @@ class BotManager:
         user.set_platforms(self.db.get_owner_platforms(user.userId))         
 
         # COULD BE MOVED TO EVENT
-        if user.ownedPlatforms == []:
+        if user.get_platforms() == []:
             # Add new user to the User table
             self.db.add_user(user.userId, user.name, user.email)
         return user
@@ -30,14 +38,13 @@ class BotManager:
         return User(userId, name, email)
 
 
-    def register_owner(self, owner: User, user: User, platform: str, auth: Authorizer):
-        #
-        # NEED TO DO AUTHORIZING
-        #
-        if auth.authorize(owner, platform):
-            self.db.register_owner(user.userId, platform)
+    def register_owner(self, c: CommandData):
+        if c.auth.authorize():
+            self.db.register_owner(c.user.userId, c.platform)
+        else:
+            raise UnauthorizedAction(caller=c.caller, message=f"User {c.caller.email} ({c.caller.name}) does not have permission to register an owner for platform '{c.platform}'")
 
-        user.ownedPlatforms = user.ownedPlatforms.append(platform)
+        c.user.ownedPlatforms = c.user.ownedPlatforms.append(c.platform)
 
     def delete_user(self, user: User):
         """Removes a user from the database"""

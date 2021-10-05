@@ -1,4 +1,3 @@
-from typing import Dict
 import slack
 import os
 
@@ -20,7 +19,7 @@ slack_event_adapter = SlackEventAdapter(os.environ['SLACKBOT_SIGNING_SECRET'], '
 client = slack.WebClient(token=os.environ['SLACKBOT_TOKEN'])
 
 class SlackManager:
-    def get_slack_info(self, id: str) -> Dict[str, str]:
+    def get_slack_info(self, id: str) -> dict[str, str]:
         """Gets the profile data from the slack users_info API"""
 
         userInfo = client.users_info(user=id)
@@ -28,15 +27,15 @@ class SlackManager:
 
         return userProfile
 
-    def get_user_id(self, profile: Dict[str, str]) -> str:
+    def get_user_id(self, profile: dict[str, str]) -> str:
         """Get the user ID from the slack user profile"""
         return profile.get('id')
 
-    def get_user_email(self, profile: Dict[str, str]) -> str:
+    def get_user_email(self, profile: dict[str, str]) -> str:
         """Get the user email from the slack user profile"""
         return profile.get('email')
     
-    def get_user_real_name(self, profile: Dict[str, str]) -> str:
+    def get_user_real_name(self, profile: dict[str, str]) -> str:
         """Get the user's name from the slack user profile"""
         return profile.get('real_name')
 

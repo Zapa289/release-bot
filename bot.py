@@ -1,11 +1,11 @@
-from auth import AuthOwner, AuthAdmin
+from auth import AuthOwner, AuthAdmin, UnauthorizedAction
 import json
 import slack_client
 
 from flask import request, Response
 
 from BuildMessage import BuildNotification, BuildMessage
-from manager import BotManager
+from manager import BotManager, CommandData
 
 #BOT_ID = client.api_call("auth.test")['user_id']
 DEMO_JENKINS_MESSAGE = """{
@@ -102,18 +102,27 @@ def reaction_added(payload):
 @slack_client.app.route('/register-Owner', methods=['POST'])
 def register_owner():
     data = request.form
-    userData = data.get('text')
-    user_id = data.get('user_id')
+    userData = data['text']
+    user_id = data['user_id']
 
     owner = manager.create_User(user_id)
     user = None
     platform = None
 
+    command = CommandData(
+        AuthOwner(owner, platform),
+        owner,
+        user,
+        platform
+        )
     if 'help' in userData:
         response = Response()
 
-    manager.register_owner(owner, user, platform, AuthOwner())
-
+    try:
+        manager.register_owner(command)
+    except UnauthorizedAction as e:
+        # Do error stuff (send an ephemeral message to the user perhaps)
+        pass
 
 def main():
     slack_client.app.run(debug=True)
