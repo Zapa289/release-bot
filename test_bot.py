@@ -12,6 +12,11 @@ from dotenv import load_dotenv
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
 
+from unittest.mock import patch
+
+from bot import BuildNotification, BuildMessage
+from db_manager import User, UnauthorizedAction, UserAlreadyOwner, PlatformError
+
 import db_manager
 
 DEBUG = True
@@ -57,7 +62,19 @@ EXPECTED_BUILD_INFO = {
             }
         }
 
-class TestBot(unittest.TestCase):
+class TestBuildNotifications(unittest.TestCase):
+    def test_get_build_info(self):
+        self.test_build_dict = BUILD_DICT
+        testBuild = BuildNotification(self.test_build_dict)
+        self.assertEqual(testBuild._get_build_info(), EXPECTED_BUILD_INFO)
+
+        self.test_build_dict['platform'] =  ['H10']
+        self.test_build_dict['new_rom_version'] = '1.99_09_09_9999'
+        testBuild = BuildNotification(self.test_build_dict)
+        self.assertEqual(testBuild._get_build_info(), {'type':'section', 'text': {'type':'mrkdwn','text':'*H10 build complete*\nBuild version: 1.99_09_09_9999'}})
+
+
+class TestUserActions(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not DEBUG or CREATE_DB:
@@ -118,34 +135,24 @@ class TestBot(unittest.TestCase):
 
     @patch('db_manager.client')
     def setUp(self, mock_client):
+        # Create TEST User
         mock_client.users_info.return_value = {'profile':{'real_name':"Test User", 'email': 'test_user@hpe.com'}, 'id' : 'TEST'}
         self.test_user = User('TEST')
 
   
     def tearDown(self):
-        pass
-        # with test_db:
-        #     try:
-        #         cursor.execute('DELETE FROM Users WHERE UserId="TEST"')
-        #     except :
-        #         pass
+        with test_db:
+            try:
+                cursor.execute('DELETE FROM Users WHERE UserId="TEST"')
+            except :
+                pass  
 
-    def test_get_build_info(self):
-        self.test_build_dict = BUILD_DICT
-        testBuild = BuildNotification(self.test_build_dict)
-        self.assertEqual(testBuild._get_build_info(), EXPECTED_BUILD_INFO)
-
-        self.test_build_dict['platform'] =  ['H10']
-        self.test_build_dict['new_rom_version'] = '1.99_09_09_9999'
-        testBuild = BuildNotification(self.test_build_dict)
-        self.assertEqual(testBuild._get_build_info(), {'type':'section', 'text': {'type':'mrkdwn','text':'*H10 build complete*\nBuild version: 1.99_09_09_9999'}})
-  
     @patch('db_manager.client')
     def test_admin_User(self, mock_client):
 
         # admin user creation
         mock_client.users_info.return_value = {'profile':{'real_name':"Jack Little", 'email': 'jack.tay.little@hpe.com'}, 'id' : 'ABC123'}
-        admin = db_manager.User('ABC123')
+        admin = User('ABC123')
 
         # multiple owned platforms
         self.assertEqual(admin.get_owner_platforms(), ['H10', 'U47'])
@@ -154,8 +161,6 @@ class TestBot(unittest.TestCase):
         self.assertEqual(admin._get_admin(), True)
 
         # Admin - register owner
-        # mock_client.users_info.return_value = {'profile':{'real_name':"Test Register", 'email': 'test_register@hpe.com'}, 'id' : 'TEST'}
-        # test_register = db_manager.User('TEST')
         self.assertEqual(self.test_user.get_owner_platforms(), [])
 
         admin.register_owner(self.test_user, 'H10')
@@ -169,6 +174,9 @@ class TestBot(unittest.TestCase):
             admin.register_owner(self.test_user, 'H10')
 
         # Admin - delete user
+        #       Removes user from Users which should cascade 
+        #       and remove all platforms registered to the user
+        #       in PlatformOwners
         admin.delete_user(self.test_user)
 
         cursor.execute('SELECT UserId FROM Users WHERE UserId=(?)', (self.test_user.userId, ))
@@ -178,17 +186,36 @@ class TestBot(unittest.TestCase):
         self.assertEqual(cursor.fetchall(), [])
 
         # Admin - register owner for platform not in DB
-        #       Should allow the new platform to be inserted 
-        #       into the DB and register the user
+        #       Should throw PlatformNotFound
+        with self.assertRaises(PlatformError):
+            admin.register_owner(self.test_user, 'ZZZ')
+
+        # Admin - create platform
+        admin.register_platform('Z99', 'e333 New Platform')
+        cursor.execute('SELECT * FROM PlatformInfo WHERE Platform="Z99"')
+        self.assertEqual(cursor.fetchone(), ('Z99', None, 'e333 New Platform'))
+        
+        # Admin - create existing platform
+        #       Should throw PlatformError
+        with self.assertRaises(PlatformError):
+            admin.register_platform('Z99', "Another one")
+
+        # Admin - delete platform
+        admin.delete_platform('Z99')
+        cursor.execute('SELECT * FROM PlatformInfo WHERE Platform="Z99"')
+        self.assertEqual(cursor.fetchone(), None)
+
+        # Admin - delete platfrom not in DB
+        with self.assertRaises(PlatformError):
+            admin.delete_platform('Z99')
+       
 
     @patch('db_manager.client')
     def test_normal_User(self, mock_client):
         
-        # Owner and test owner creation
+        # Make owner
         mock_client.users_info.return_value = {'profile':{'real_name':"Jack Whack", 'email': 'jack.3@hpe.com'}, 'id' : 'ABC456'}
-        user = db_manager.User('ABC456')
-        # mock_client.users_info.return_value = {'profile':{'real_name':"TEST2 Guy", 'email': 'TEST2.com'}, 'id' : 'TEST2'}
-        # test = db_manager.User('TEST2')
+        user = User('ABC456')
 
         # multiple owned platforms
         self.assertEqual(user.get_owner_platforms(), ['H10', 'U47'])
@@ -218,8 +245,6 @@ class TestBot(unittest.TestCase):
         with self.assertRaises(UnauthorizedAction):
             user.register_owner(self.test_user, 'U47')
 
-        cursor.execute('DELETE FROM Users WHERE UserId="TEST"')
-
         # register existing platform
 
         # register platform not in DB
@@ -229,20 +254,53 @@ class TestBot(unittest.TestCase):
     def test_create_User(self, mock_client):
         # user creation
         mock_client.users_info.return_value = {'profile':{'real_name':"Jack Shmack", 'email': 'jack.2@hpe.com'}, 'id' : 'ABC456'}
-        user = db_manager.User('ABC456')
+        user = User('ABC456')
         self.assertEqual(user.name, 'Jack Shmack')
         self.assertEqual(user.email, 'jack.2@hpe.com')
         self.assertEqual(user.userId, 'ABC456')
         self.assertEqual(user.is_admin, False)
         self.assertEqual(user.owned_platforms, ['H10', 'U47'])
 
+
+    
+class TestDatabase(unittest.TestCase):
     def test_find_platform(self):
         # Find existing platform
         self.assertEqual(db_manager.find_platform('H10'), True)
 
         # Find new platform
         self.assertEqual(db_manager.find_platform('Y99'), False)
-    
+
+
+    def test_db_foreign_keys(self):
+        """Test that the foreign key dependencies are working correctly
+        """
+        with test_db:
+            cursor.execute('INSERT INTO Users VALUES (?, ?, ?)', ('TEST1', '', ''))
+            cursor.execute('INSERT INTO Users VALUES (?, ?, ?)', ('TEST2', '', ''))
+
+            cursor.execute('INSERT INTO PlatformInfo VALUES (?, ?, ?)', ('Z99', None, ''))
+            cursor.execute('INSERT INTO PlatformInfo VALUES (?, ?, ?)', ('X88', None, ''))
+
+            cursor.execute('INSERT INTO PlatformOwners VALUES (?, ?)', ('Z99', 'TEST1'))
+            cursor.execute('INSERT INTO PlatformOwners VALUES (?, ?)', ('Z99', 'TEST2'))
+            cursor.execute('INSERT INTO PlatformOwners VALUES (?, ?)', ('X88', 'TEST1'))
+            cursor.execute('INSERT INTO PlatformOwners VALUES (?, ?)', ('X88', 'TEST2'))
+
+        with test_db:
+            cursor.execute('DELETE FROM Users WHERE UserId="TEST1"')
+        
+        cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId="TEST1"')
+        self.assertEqual(cursor.fetchall(), [])
+
+        with test_db:
+            cursor.execute('DELETE FROM PlatformInfo WHERE Platform="X88"')
+        cursor.execute('SELECT UserId FROM PlatformOwners WHERE Platform="X88"')
+        self.assertEqual(cursor.fetchall(), [])
+
+        #clean up
+        cursor.execute('DELETE FROM PlatformInfo WHERE Platform="Z99"')
+        cursor.execute('DELETE FROM Users WHERE UserId="TEST2"')
 
 if __name__ == '__main__':
     db_manager.build_cursor = cursor

@@ -18,6 +18,7 @@ class DatabaseAccess(ABC):
         """Get a list of all platforms owned by a user.
         """
 
+
     @abstractmethod
     def register_owner(self, user_id, platform):
         """Registers a user as an owner of a platform in PlatformOwners
