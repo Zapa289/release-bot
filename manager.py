@@ -1,52 +1,60 @@
+import slack_client
 from dataclasses import dataclass
 from typing import Optional
-from auth import Authorizer, UnauthorizedAction
-from db_manager import DatabaseAccess
-from slack_client import SlackManager
-from user import User
+from lib.auth import Authorizer, UnauthorizedAction
+from db_manager import SQLiteDatabaseAccess
+from lib.user import User
+
+db = SQLiteDatabaseAccess('build_database.db')
 
 @dataclass
 class CommandData:
+    """"""
     auth: Authorizer
     caller: User
     user: Optional[User]
     platform: Optional[str]
 
-class BotManager:
-    def __init__(self):
-        self.db = DatabaseAccess('build_database.db')
-        self.slack = SlackManager()
+# class BotManager:
+#     """Manager for bot activites including user mana"""
+#     def __init__(self):
+#         self.db = DatabaseAccess('build_database.db')
+#         #self.slack = SlackManager()
 
-    def create_User(self, id: str) -> User:
-        user = self.new_slack_user(id)
-        user.set_admin(self.db.get_admin(user.userId))
-        user.set_platforms(self.db.get_owner_platforms(user.userId))         
+def create_user(slack_id: str) -> User:
+    """Create a new User object."""
+    user = new_slack_user(slack_id)
+    user.set_user_admin(user.user_id in db.admin_ids)
+    user.set_user_platforms(db.get_owner_platforms(user.user_id))
 
-        # COULD BE MOVED TO EVENT
-        if user.get_platforms() == []:
-            # Add new user to the User table
-            self.db.add_user(user.userId, user.name, user.email)
-        return user
+    # COULD BE MOVED TO EVENT
+    if user.get_user_platforms() == []:
+        # Add new user to the User table
+        db.add_user(user.user_id, user.name, user.email)
+    return user
 
-    def new_slack_user(self, id: str) -> User:
-        profile = self.slack.get_slack_info(id)
+def new_slack_user(slack_id: str) -> User:
+    """Get user info from Slack"""
+    profile = slack_client.get_slack_info(slack_id)
 
-        userId = self.slack.get_user_id(profile)
-        name = self.slack.get_user_real_name(profile)
-        email = self.slack.get_user_email(profile)
+    user_id = slack_client.get_user_id_from_profile(profile)
+    name = slack_client.get_user_name_from_profile(profile)
+    email = slack_client.get_user_email_from_profile(profile)
 
-        return User(userId, name, email)
+    return User(user_id, name, email)
 
+def register_owner(command: CommandData):
+    """Add a user as an owner to a platform"""
+    if command.auth.authorize():
+        db.register_owner(command.user.userId, command.platform)
+    else:
+        raise UnauthorizedAction(caller=command.caller, 
+            message=f"User {command.caller.name} ({command.caller.email}) does not have permission to register an owner for platform '{command.platform}'")
 
-    def register_owner(self, c: CommandData):
-        if c.auth.authorize():
-            self.db.register_owner(c.user.userId, c.platform)
-        else:
-            raise UnauthorizedAction(caller=c.caller, message=f"User {c.caller.email} ({c.caller.name}) does not have permission to register an owner for platform '{c.platform}'")
-
-        c.user.ownedPlatforms = c.user.ownedPlatforms.append(c.platform)
-
-    def delete_user(self, user: User):
-        """Removes a user from the database"""
-        ### Authorize deletion
-        pass
+def delete_user(command:CommandData):
+    """Removes a user from the database. All associated ownerships are deleted as well."""
+    if command.auth.authorize():
+        db.delete_user(command.user.userId)
+    else:
+        raise UnauthorizedAction(caller=command.caller, 
+            message=f"User {command.caller.email} ({command.caller.name}) does not have permission to delete a user")

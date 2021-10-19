@@ -1,61 +1,94 @@
+from abc import ABC, abstractmethod
 import sqlite3
 from typing import List
-    
-class DatabaseAccess:
-    def __init__(self, database: str):
-        self.build_db = sqlite3.connect(database)
+from lib.platform import Platform, PlatformNotFound
+
+class DatabaseAccess(ABC):
+    """Controls access to database"""
+    @abstractmethod
+    def find_platform(self, platform) -> bool:
+        """Return if platform exists in the database"""
+
+    @abstractmethod
+    def get_admin_list(self) -> List[str]:
+        """Returns a list of user IDs of all Admins"""
+
+    @abstractmethod
+    def get_owner_platforms(self, user_id) -> List[str]:
+        """Get a list of all platforms owned by a user.
+        """
+
+    @abstractmethod
+    def register_owner(self, user_id, platform):
+        """Registers a user as an owner of a platform in PlatformOwners
+        """ 
+
+    @abstractmethod
+    def add_user(self, user_id: str, name: str, email: str):
+        """Add user to Users table"""
+
+    @abstractmethod
+    def delete_user(self, user_id: str):
+        """Delete User from database. Foreign key management will destroy all ownership data in PlatformOwners"""
+
+class SQLiteDatabaseAccess(DatabaseAccess):
+    """Controls access to database"""
+
+    def __init__(self, database_file: str):
+        self.database = database_file
+        self.build_db = sqlite3.connect(database_file)
         self.build_cursor = self.build_db.cursor()
 
         self.build_cursor.execute("PRAGMA foreign_keys = ON")
 
-        self.adminIds = self.get_admin_list()
+        self.admin_ids = self.get_admin_list()
 
     def find_platform(self, platform) -> bool:
-        """Find a platform in PlatformInfo table
-        Return True/False that it exists"""
+        """Return if platform exists in the database"""
         self.build_cursor.execute('SELECT Platform FROM PlatformInfo WHERE Platform=?', (platform,))
 
-        return self.build_cursor.fetchone() != None
-
-    # def get_admin(self, userId) -> bool:
-    #     """Returns True if user exists in admins table, otherwise false
-    #     """
-    #     self.build_cursor.execute('SELECT AdminId FROM Admins WHERE AdminID=:user_id', {'user_id':userId})
-    #     return self.build_cursor.fetchone() != None
+        return self.build_cursor.fetchone() is not None
 
     def get_admin_list(self) -> List[str]:
         """Returns a list of user IDs of all Admins"""
         self.build_cursor.execute('SELECT AdminId FROM Admins')
         return [admin for admin, in self.build_cursor.fetchall()]
 
-    def get_admin(self, userId) -> bool:
-        """Return if user ID is in list of admins"""
-        return userId in self.adminIds
-
-    def get_owner_platforms(self, userId) -> List[str]:
+    def get_owner_platforms(self, user_id) -> List[str]:
         """Get a list of all platforms owned by a user.
         """
-        self.build_cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=:user_id', {'user_id':userId})
+        self.build_cursor.execute('SELECT Platform FROM PlatformOwners WHERE UserId=:user_id', {'user_id':user_id})
         return [plat for plat, in self.build_cursor.fetchall()]
     
-    def register_owner(self, userId, platform):
+    def register_owner(self, user_id, platform):
         """Registers a user as an owner of a platform in PlatformOwners
         """
         # Add platform and user to PlatformOwners table
         with self.build_db:
-            self.build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, userId))    
+            self.build_cursor.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user_id))    
 
-    def add_user(self, userId: str, name: str, email: str):
+    def add_user(self, user_id: str, name: str, email: str):
         """Add user to Users table"""
         with self.build_db:
-            self.build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':userId, 'user_name':name, 'user_email': email})
+            self.build_cursor.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user_id, 'user_name':name, 'user_email': email})
 
-    def delete_user(self, userId: str):
+    def delete_user(self, user_id: str):
         """Delete User from database. Foreign key management will destroy all ownership data in PlatformOwners"""
 
-        with self.build_db: 
-            self.build_cursor.execute('DELETE FROM Users WHERE UserId=:userId', {'userId' : userId})
+        with self.build_db:
+            self.build_cursor.execute('DELETE FROM Users WHERE UserId=:userId', {'userId' : user_id})
 
+    def get_platform(self, platform: str) -> Platform:
+        """Get Platform from database"""
+
+        self.build_cursor.execute('SELECT Platform, ChannelId, IdString FROM PlatformInfo WHERE Platform=:platform', {'platform':platform})
+        platform_row = self.build_cursor.fetchone()
+        if not platform_row:
+            raise PlatformNotFound(message=f'Could not find platform {platform} in {self.database}')
+
+        (platform_id, channel_id, description) = platform_row
+
+        return Platform(rom_family=platform_id, description = description, slack_channel = channel_id)
 
 def main():
     pass
@@ -89,6 +122,6 @@ def main():
 
     # build_db.close()
 
-if(__name__ == "__main__"):
+if __name__ == "__main__":
     main()
 

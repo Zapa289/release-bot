@@ -1,11 +1,16 @@
-from auth import AuthOwner, AuthAdmin, UnauthorizedAction
+import os
 import json
-import slack_client
+from flask import Flask, request, Response
+import lib.slack_client as slack_client
+import manager
+from lib.auth import AuthOwner, AuthAdmin, UnauthorizedAction
+from lib.BuildMessage import BuildNotification, BuildMessage
+from slackeventsapi import SlackEventAdapter
 
-from flask import request, Response
-
-from BuildMessage import BuildNotification, BuildMessage
-from manager import BotManager, CommandData
+from pathlib import Path
+from dotenv import load_dotenv
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
 
 #BOT_ID = client.api_call("auth.test")['user_id']
 DEMO_JENKINS_MESSAGE = """{
@@ -33,40 +38,41 @@ DEMO_JENKINS_MESSAGE = """{
 """
 #DEMO_PAYLOAD = {'event' : { 'channel' : TEST_JENKINS_CHANNEL, 'user' : BOT_ID, 'text' : DEMO_JENKINS_MESSAGE}}
 
-manager = BotManager()
+app = Flask(__name__)
+slack_event_adapter = SlackEventAdapter(os.environ['SLACKBOT_SIGNING_SECRET'], '/slack/events', app)
 
-def process_Jenkins(build_event):
-    event = build_event.get('event', {})
-    channel_id = event.get('channel')
-    #build_info = json.loads(event.get('text'))
-    build_info = json.loads(DEMO_JENKINS_MESSAGE)  
+# def process_Jenkins(build_event):
+#     event = build_event.get('event', {})
+#     channel_id = event.get('channel')
+#     #build_info = json.loads(event.get('text'))
+#     build_info = json.loads(DEMO_JENKINS_MESSAGE)
 
-    message = 'I found a new build! ' +  str(build_info.get('new_rom_version','oops'))
-    manager.slack.write_message(channel=channel_id, message=message)
-    build_message = BuildNotification(build_info).get_build_message()
-    #print(message)
+#     message = 'I found a new build! ' +  str(build_info.get('new_rom_version','oops'))
+#     slack_client.write_message(channel=channel_id, message=message)
+#     build_message = BuildNotification(build_info).get_build_message()
+#     #print(message)
 
-    for platform in build_info.get('platform'):
-        # build_log[platform][build_info.get('new_rom_version')] = build_message
-        # print(build_log[platform][build_info.get('new_rom_version')])
-        #db_manager.store_build_message(build_message)
-        slack_message = BuildMessage(build_message=build_message)
+#     for platform in build_info.get('platform'):
+#         # build_log[platform][build_info.get('new_rom_version')] = build_message
+#         # print(build_log[platform][build_info.get('new_rom_version')])
+#         #db_manager.store_build_message(build_message)
+#         slack_message = BuildMessage(build_message=build_message)
 
-    response = slack_client.client.chat_postMessage(channel=channel_id,**build_message)
-    build_message.timestamp = response['ts']
-    #
-    # log build message for later to update
-    #
+#     response = slack_client.client.chat_postMessage(channel=channel_id,**build_message)
+#     build_message.timestamp = response['ts']
+#     #
+#     # log build message for later to update
+#     #
 
-@slack_client.slack_event_adapter.on('message')
-def message(payload):
+@slack_event_adapter.on('message')
+def message_received(payload):
     event = payload.get('event', {})
     channel_id = event.get('channel')
     user_id = event.get('user')
     text = event.get('text')
     BOT_ID = slack_client.client.api_call("auth.test")['user_id']
 
-    if user_id != None and BOT_ID != user_id:
+    if user_id is not None and BOT_ID != user_id:
         # if user_id in message_counts:
         #     message_counts[user_id] += 1
         # else:
@@ -74,9 +80,10 @@ def message(payload):
 
         if channel_id == slack_client.TEST_JENKINS_CHANNEL:
             if text.lower() == "demo":
-                process_Jenkins(payload)
+                #lib.jenkins.process_Jenkins(payload)
+                pass
 
-@slack_client.slack_event_adapter.on('reaction_added')
+@slack_event_adapter.on('reaction_added')
 def reaction_added(payload):
     event = payload.get('event', {})
     channel_id = event.get('item', {}).get('channel')
@@ -89,44 +96,41 @@ def reaction_added(payload):
     # check for user permission
     #
 
-# @app.route('/message-count', methods=['POST'])
-# def message_count():
-#     data = request.form
-#     user_id = data.get('user_id')
-#     channel_id = data.get('channel_id')
+@app.route('/release-bot', methods=['POST'])
+def release_bot_commands():
+    """Handles all commands from general users/owners"""
 
-#     if user_id in message_counts:
-#         client.chat_postMessage(channel=channel_id, text=f'Message Count: {message_counts[user_id]}')
-#     return Response(), 200
+    if not slack_client.is_valid_request(request):
+        return Response(response='Invalid request'), 200
+    return Response(), 200
 
-@slack_client.app.route('/register-Owner', methods=['POST'])
-def register_owner():
-    data = request.form
-    userData = data['text']
-    user_id = data['user_id']
+    event = request.form.to_dict()
+    user_data = event['text']
+    user_id = event['user_id']
 
-    owner = manager.create_User(user_id)
+    owner = manager.create_user(user_id)
     user = None
     platform = None
 
-    command = CommandData(
+    command = manager.CommandData(
         AuthOwner(owner, platform),
         owner,
         user,
         platform
         )
-    if 'help' in userData:
+    if 'help' in user_data:
         response = Response()
 
     try:
         manager.register_owner(command)
-    except UnauthorizedAction as e:
+    except UnauthorizedAction as error:
         # Do error stuff (send an ephemeral message to the user perhaps)
-        pass
+        print(error.message)
 
+        
 def main():
-    slack_client.app.run(debug=True)
+    app.run(debug=True)
 
-if(__name__ == "__main__"):
+if __name__ == "__main__":
     main()
      
