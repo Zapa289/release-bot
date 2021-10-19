@@ -1,11 +1,8 @@
-import slack_client
+import lib.slack_client as slack_client
 from dataclasses import dataclass
 from typing import Optional
 from lib.auth import Authorizer, UnauthorizedAction
-from db_manager import SQLiteDatabaseAccess
 from lib.user import User
-
-db = SQLiteDatabaseAccess('build_database.db')
 
 @dataclass
 class CommandData:
@@ -36,12 +33,7 @@ def create_user(slack_id: str) -> User:
 def new_slack_user(slack_id: str) -> User:
     """Get user info from Slack"""
     profile = slack_client.get_slack_info(slack_id)
-
-    user_id = slack_client.get_user_id_from_profile(profile)
-    name = slack_client.get_user_name_from_profile(profile)
-    email = slack_client.get_user_email_from_profile(profile)
-
-    return User(user_id, name, email)
+    return User(**profile)
 
 def register_owner(command: CommandData):
     """Add a user as an owner to a platform"""

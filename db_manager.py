@@ -32,6 +32,10 @@ class DatabaseAccess(ABC):
     def delete_user(self, user_id: str):
         """Delete User from database. Foreign key management will destroy all ownership data in PlatformOwners"""
 
+    @abstractmethod
+    def get_platform(self, platform: str) -> Platform:
+        """Get platfrom data from PlatformInfo table"""
+
 class SQLiteDatabaseAccess(DatabaseAccess):
     """Controls access to database"""
 

@@ -4,8 +4,8 @@ import sqlite3
 from unittest.mock import patch
 
 from bot import BuildNotification, BuildMessage
-from db_manager import UnauthorizedAction, UserAlreadyOwner
-from user import User
+from lib.auth import UnauthorizedAction, UserAlreadyOwner
+from lib.user import User
 
 from pathlib import Path
 from dotenv import load_dotenv

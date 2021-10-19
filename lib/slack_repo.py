@@ -27,11 +27,12 @@ NEW_SUBSCRIPTION_BUTTON = {
 			]
 		}
 
+SUB_ACTION_BASE = "Subscription_"
 SUBSCRIPTION = {
 			"type": "section",
 			"text": {
 				"type": "mrkdwn",
-				"text": "*#public-relations*\n<fakelink.toUrl.com|PR Strategy 2019> posts new tasks, comments, and project updates to <fakelink.toChannel.com|#public-relations>"
+				"text": "ROM FAMILY DESC"
 			},
 			"accessory": {
 				"type": "button",
@@ -41,8 +42,18 @@ SUBSCRIPTION = {
 					"emoji": True
 				},
 				"value": "edit_subscription",
-				"action_id": "edit_subscription"
+				"action_id": "ACTIONID"
 			}
+		}
+
+SUB_CONTEXT = {
+			"type": "context",
+			"elements": [
+				{
+					"type": "mrkdwn",
+					"text": "CONTEXT"
+				}
+			]
 		}
 
 EMPTY_SUBSCRIPTION = {

@@ -8,6 +8,7 @@ class User:
     email: str
     is_admin: bool = field(init=False, default=False)
     owned_platforms: list[str] = field(init=False, default_factory=list)
+    subscriptions: list[str] = field(init=False, default_factory=list)
 
     def set_user_admin(self, is_admin: bool):
         """Set user's admin status"""
@@ -23,3 +24,7 @@ class User:
 
     def get_user_platforms(self) -> list[str]:
         return self.owned_platforms
+
+    def set_user_subscriptions(self, subs: list[str]):
+        self.subscriptions = subs
+
