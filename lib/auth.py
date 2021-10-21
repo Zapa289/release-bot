@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from user import User
+from lib.user import User
 
 class Authorizer(ABC):
     """Abstract class for authorizing commands"""

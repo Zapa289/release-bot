@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 @dataclass
 class User:
     """Contains user information"""
-    user_id: str
+    id: str
     name: str
     email: str
     is_admin: bool = field(init=False, default=False)
