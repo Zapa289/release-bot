@@ -27,4 +27,3 @@ class User:
 
     def set_user_subscriptions(self, subs: list[str]):
         self.subscriptions = subs
-

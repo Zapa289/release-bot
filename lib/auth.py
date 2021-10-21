@@ -1,3 +1,4 @@
+"""Authenticator for database accesses"""
 from abc import ABC, abstractmethod
 from lib.user import User
 

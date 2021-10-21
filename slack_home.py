@@ -20,12 +20,12 @@ def get_home_tab(user: User, db : DatabaseAccess) -> str:
             sub_blocks
             ]
     }
-
+    print(home_tab)
     return json.dumps(home_tab)
 
 def get_subscription_blocks(user: User, db: DatabaseAccess) -> list:
     """Get all the slack blocks for different """
-    sub_blocks = list[dict]
+    sub_blocks: list[dict] = []
 
     for platform in user.subscriptions:
         try:

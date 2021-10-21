@@ -52,7 +52,7 @@ def publish_view(user_id: str, blocks: dict):
     response = client.views_publish(user_id=user_id, view=blocks)
 
     if not response['ok']:
-         raise SlackResponseError(user_id=user_id, message=f"Error during view.publish: {response['error']}")
+        raise SlackResponseError(user_id=user_id, message=f"Error during view.publish: {response['error']}")
 
     return
 
