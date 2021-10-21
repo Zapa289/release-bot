@@ -13,14 +13,14 @@ def get_home_tab(user: User, db : DatabaseAccess) -> str:
         sub_blocks = sr.EMPTY_SUBSCRIPTION
 
     home_tab = {
-	"type": "home",
-	"blocks": [sr.SUBSCRIPTION_HEADER,
-            sr.NEW_SUBSCRIPTION_BUTTON,
-            sr.DIVIDER,
-            sub_blocks
-            ]
-    }
-    print(home_tab)
+        "type": "home",
+        "blocks": [sr.SUBSCRIPTION_HEADER,
+                sr.NEW_SUBSCRIPTION_BUTTON,
+                sr.DIVIDER
+                ]
+        }
+
+    home_tab["blocks"] = home_tab["blocks"] + sub_blocks
     return json.dumps(home_tab)
 
 def get_subscription_blocks(user: User, db: DatabaseAccess) -> list:
@@ -29,11 +29,11 @@ def get_subscription_blocks(user: User, db: DatabaseAccess) -> list:
 
     for platform in user.subscriptions:
         try:
-            platform_info = db.get_platform(platform)
-        except PlatformNotFound as error:
-            #log stuff
-            print(error.message)
+            platform_info = db.platforms[platform]
+        except KeyError:
+            #Need to log
             continue
+            raise PlatformNotFound(message=f"Platform '{platform}' could not be found.")
 
         sub_blocks.append(new_subscription_block(platform_info))
         sub_blocks.append(new_context_block(platform_info))
@@ -52,6 +52,9 @@ def new_subscription_block(platform: Platform) -> dict:
 def new_context_block(platform: Platform) -> dict:
     """Create a new helper text block for the platform"""
     new_block = sr.SUB_CONTEXT
-    new_block["elements"][0]["text"] = f":pushpin: <https://slack.com/app_redirect?channel={platform.slack_channel}|Join the release channel>."
-    
+    if not platform.slack_channel:
+        new_block["elements"][0]["text"] = f":warning: There is currently no available release channel for the {platform.rom_family} ROM."
+    else:
+        new_block["elements"][0]["text"] = f":pushpin: Join the <https://slack.com/app_redirect?channel={platform.slack_channel}|release channel>."
+
     return new_block

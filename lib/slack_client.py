@@ -33,7 +33,6 @@ def new_slack_user(slack_id: str) -> User:
 
 def get_slack_info(user_id: str) -> dict[str, str]:
     """Gets information about a user from Slack"""
-    
     user_info = {}
     try:
         user_info = client.users_info(user=user_id)
@@ -54,7 +53,20 @@ def publish_view(user_id: str, blocks: dict):
     if not response['ok']:
         raise SlackResponseError(user_id=user_id, message=f"Error during view.publish: {response['error']}")
 
-    return
+def create_new_release_channel(channel_name: str) -> str:
+    """Create a new slack channel for releases. Returns channel ID"""
+    try:
+        response = client.conversations_create(name=channel_name)
+    except SlackApiError as error:
+        print(error.response)
+
+    if not response["ok"]:
+        #do some logging
+        print(f"Error creating channel '{channel_name}''. Error: {response['error']}")
+        return None
+
+    channel = response["channel"]
+    return channel['id']
 
 class UserNotFound(Exception):
     """Custom exception for when Slack users_info """

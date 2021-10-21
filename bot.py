@@ -98,9 +98,10 @@ def release_bot_commands():
 
 def create_user(slack_id: str) -> lib.User:
     """Create a new User object."""
-    user = lib.slack_client.new_slack_user(slack_id)
-    user.set_user_admin(user.id in db.admin_ids)
-    user.set_user_platforms(db.get_owner_platforms(user.id))
+    user: lib.User = lib.slack_client.new_slack_user(slack_id)
+    user.is_admin = user.id in db.admin_ids
+    user.owned_platforms = db.get_owner_platforms(user.id)
+    user.subscriptions = db.get_user_subscriptions(user.id)
 
     # COULD BE MOVED TO EVENT
     # if user.get_user_platforms() == []:
@@ -113,4 +114,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-     

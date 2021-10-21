@@ -6,8 +6,8 @@ from lib.platform import Platform, PlatformNotFound
 class DatabaseAccess(ABC):
     """Controls access to database"""
     @abstractmethod
-    def find_platform(self, platform) -> bool:
-        """Return if platform exists in the database"""
+    def platforms(self) -> list:
+        """Return platform data"""
 
     @abstractmethod
     def _get_admin_list(self) -> list[str]:
@@ -18,36 +18,34 @@ class DatabaseAccess(ABC):
         """Get a list of all platforms owned by a user.
         """
 
-
     @abstractmethod
     def register_owner(self, user_id, platform):
         """Registers a user as an owner of a platform in PlatformOwners
-        """ 
+        """
 
     @abstractmethod
-    def add_user(self, user_id: str, name: str, email: str):
-        """Add user to Users table"""
+    def add_owner(self, user_id: str, name: str, email: str):
+        """Add user to Owners table"""
 
     @abstractmethod
-    def delete_user(self, user_id: str):
-        """Delete User from database. Foreign key management will destroy all ownership data in PlatformOwners"""
+    def delete_owner(self, user_id: str):
+        """Delete owner from database. Foreign key management will destroy all ownership data in PlatformOwners"""
 
     @abstractmethod
     def _get_platforms(self) -> list[Platform]:
         """Get platfrom data from PlatformInfo table"""
+
+    @abstractmethod
+    def get_user_subscriptions(self, user_id: str) -> list:
+        """Get the list of user's subscriptions"""
 
 class SQLiteDatabaseAccess(DatabaseAccess):
     """Controls access to database"""
 
     def __init__(self, database_file: str):
         self.database = database_file
-        # self.build_db = sqlite3.connect(database_file)
-        # self.cur = self.build_db.cursor()
-
-        # self.cur.execute("PRAGMA foreign_keys = ON")
-
         self.admin_ids = self._get_admin_list()
-        self.platforms = self._get_platforms()
+        self._platforms = self._get_platforms()
 
     def make_cursor(self, connection: Connection) -> Cursor:
         """Make a new cursor for the SQLite connection"""
@@ -56,13 +54,10 @@ class SQLiteDatabaseAccess(DatabaseAccess):
 
         return cursor
 
-    def find_platform(self, platform) -> bool:
-        """Return if platform exists in the database"""
-        with sqlite3.connect(self.database) as conn:
-            cur = self.make_cursor(conn)
-            cur.execute('SELECT Platform FROM PlatformInfo WHERE Platform=?', (platform,))
-            platform = cur.fetchone()
-        return platform is not None
+    @property
+    def platforms(self) -> dict:
+        """Return platform data"""
+        return self._platforms
 
     def _get_admin_list(self) -> list[str]:
         """Returns a list of user IDs of all Admins"""
@@ -80,39 +75,47 @@ class SQLiteDatabaseAccess(DatabaseAccess):
             cur.execute('SELECT Platform FROM PlatformOwners WHERE UserId=:user_id', {'user_id':user_id})
             owners_platforms = cur.fetchall()
         return [plat for plat, in owners_platforms]
-    
+
     def register_owner(self, user_id, platform):
         """Registers a user as an owner of a platform in PlatformOwners
         """
         with sqlite3.connect(self.database) as conn:
             cur = self.make_cursor(conn)
-            cur.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user_id))    
+            cur.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user_id))
 
-    def add_user(self, user_id: str, name: str, email: str):
-        """Add user to Users table"""
+    def add_owner(self, user_id: str, name: str, email: str):
+        """Add user to Owners table"""
         with sqlite3.connect(self.database) as conn:
             cur = self.make_cursor(conn)
-            cur.execute('INSERT INTO Users (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user_id, 'user_name':name, 'user_email': email})
+            cur.execute('INSERT INTO Owners (UserId, UserName, UserEmail) VALUES (:user_id, :user_name, :user_email)', {'user_id':user_id, 'user_name':name, 'user_email': email})
 
-    def delete_user(self, user_id: str):
-        """Delete User from database. Foreign key management will destroy all ownership data in PlatformOwners"""
+    def delete_owner(self, user_id: str):
+        """Delete user from Owners table. Foreign key management will destroy all ownership data in PlatformOwners"""
         with sqlite3.connect(self.database) as conn:
             cur = self.make_cursor(conn)
             cur.execute('DELETE FROM Users WHERE UserId=:userId', {'userId' : user_id})
 
-    def _get_platforms(self) -> Platform:
+    def _get_platforms(self) -> dict[str, Platform]:
         """Get list of all platforms in database"""
         with sqlite3.connect(self.database) as conn:
             cur = self.make_cursor(conn)
-            cur.execute('SELECT Platform, ChannelId, IdString FROM PlatformInfo')
+            cur.execute('SELECT Platform, IdString, ChannelId FROM PlatformInfo')
             platforms = cur.fetchall()
 
-        platform_list = []
-        for platform in platforms:
-            (platform_id, channel_id, description) = platform
-            platform_list.append(Platform((platform_id, channel_id, description)))
+        platform_list = {}
+        for platform_row in platforms:
+            platform_id, description, channel_id = platform_row
+            platform_list[platform_id] = Platform(rom_family=platform_id, description=description, slack_channel=channel_id)
 
         return platform_list
+
+    def get_user_subscriptions(self, user_id: str) -> list:
+        """Get a list of user's subscriptions"""
+        with sqlite3.connect(self.database) as conn:
+            cur = self.make_cursor(conn)
+            cur.execute("SELECT Platform FROM Subscriptions WHERE User_Id=:userId", {'userId': user_id})
+            subs = cur.fetchall()
+        return [platform for platform, in subs]
 
 def main():
     pass
@@ -148,4 +151,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
