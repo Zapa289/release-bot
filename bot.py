@@ -65,6 +65,23 @@ def app_home_opened(payload):
 
     return Response(), 200
 
+@app.route('/action', methods=['POST'])
+def slack_action():
+    """Handles all actions from users"""
+
+    if not lib.slack_client.is_valid_request(request):
+        return Response(response='Invalid request'), 200
+
+    event = request.form.to_dict()
+
+    #check what action prompted the event
+
+    #create proper modal
+
+    #send up the modal
+
+    return Response(), 200
+
 @app.route('/release-bot', methods=['POST'])
 def release_bot_commands():
     """Handles all commands from general users/owners"""

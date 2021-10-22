@@ -5,9 +5,6 @@ from lib.platform import Platform, PlatformNotFound
 
 class DatabaseAccess(ABC):
     """Controls access to database"""
-    @abstractmethod
-    def platforms(self) -> list:
-        """Return platform data"""
 
     @abstractmethod
     def _get_admin_list(self) -> list[str]:
@@ -24,7 +21,7 @@ class DatabaseAccess(ABC):
         """
 
     @abstractmethod
-    def add_owner(self, user_id: str, name: str, email: str):
+    def _add_owner(self, user_id: str, name: str, email: str):
         """Add user to Owners table"""
 
     @abstractmethod
@@ -45,7 +42,7 @@ class SQLiteDatabaseAccess(DatabaseAccess):
     def __init__(self, database_file: str):
         self.database = database_file
         self.admin_ids = self._get_admin_list()
-        self._platforms = self._get_platforms()
+        self.platforms = self._get_platforms()
 
     def make_cursor(self, connection: Connection) -> Cursor:
         """Make a new cursor for the SQLite connection"""
@@ -53,11 +50,6 @@ class SQLiteDatabaseAccess(DatabaseAccess):
         cursor.execute("PRAGMA foreign_keys = ON")
 
         return cursor
-
-    @property
-    def platforms(self) -> dict:
-        """Return platform data"""
-        return self._platforms
 
     def _get_admin_list(self) -> list[str]:
         """Returns a list of user IDs of all Admins"""
@@ -82,8 +74,10 @@ class SQLiteDatabaseAccess(DatabaseAccess):
         with sqlite3.connect(self.database) as conn:
             cur = self.make_cursor(conn)
             cur.execute('INSERT INTO PlatformOwners (Platform, UserId) VALUES ( ?, ?)', (platform, user_id))
+        if not self.get_owner_platforms(user_id):
+            raise OwnerNotInTable(message=f"User ID '{user_id}' was not found in the Owner table.")
 
-    def add_owner(self, user_id: str, name: str, email: str):
+    def _add_owner(self, user_id: str, name: str, email: str):
         """Add user to Owners table"""
         with sqlite3.connect(self.database) as conn:
             cur = self.make_cursor(conn)
@@ -116,6 +110,13 @@ class SQLiteDatabaseAccess(DatabaseAccess):
             cur.execute("SELECT Platform FROM Subscriptions WHERE User_Id=:userId", {'userId': user_id})
             subs = cur.fetchall()
         return [platform for platform, in subs]
+
+class OwnerNotInTable(Exception):
+    """Customer exception for when a user is registered as an owner,
+        but does not have an entry in the Owners table"""
+    def __init__(self, message="Could not find user in Owners"):
+        self.message = message
+        super().__init__(message)
 
 def main():
     pass
