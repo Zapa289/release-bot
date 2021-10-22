@@ -1,10 +1,12 @@
 """Core function of the release bot."""
 import os
+import json
 from pathlib import Path
 from flask import Flask, request, Response
 from slackeventsapi import SlackEventAdapter
 from dotenv import load_dotenv
 import slack_home
+from slack_home import Action
 import lib
 from db_manager import SQLiteDatabaseAccess
 
@@ -65,20 +67,28 @@ def app_home_opened(payload):
 
     return Response(), 200
 
-@app.route('/action', methods=['POST'])
+@app.route('/actions', methods=['POST'])
 def slack_action():
     """Handles all actions from users"""
 
     if not lib.slack_client.is_valid_request(request):
         return Response(response='Invalid request'), 200
 
-    event = request.form.to_dict()
+    event = json.loads(request.form['payload'])
+    user = create_user(event['user'])
+    trigger_id = event["trigger_id"]
+    actions = event["actions"]
 
     #check what action prompted the event
+    for single_action in actions:
+        action = Action(single_action, trigger_id)
 
-    #create proper modal
+        #create proper modal
+        modal = slack_home.create_modal(action, user)
 
-    #send up the modal
+
+        #send up the modal
+        lib.slack_client.publish_view(user.id, modal)
 
     return Response(), 200
 
@@ -120,13 +130,10 @@ def create_user(slack_id: str) -> lib.User:
     user.owned_platforms = db.get_owner_platforms(user.id)
     user.subscriptions = db.get_user_subscriptions(user.id)
 
-    # COULD BE MOVED TO EVENT
-    # if user.get_user_platforms() == []:
-    #     # Add new user to the User table
-    #     db.add_user(user.id, user.name, user.email)
     return user
 
 def main():
+    """Start the bot"""
     app.run(debug=True)
 
 if __name__ == "__main__":
