@@ -86,7 +86,7 @@ EDIT_SUB_MODAL = {
 					"type": "button",
 					"text": {
 						"type": "plain_text",
-						"text": ":x: Unsubscribe",
+						"text": "Unsubscribe",
 						"emoji": True
 					},
 					"value": "ROM FAMILY",

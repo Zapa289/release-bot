@@ -60,6 +60,8 @@ def app_home_opened(payload):
     event = payload.get('event', {})
     user_id = event.get('user')
     user = create_user(user_id)
+    if not user:
+        return Response(response="User not found"), 200
 
     home_blocks = slack_home.get_home_tab(user, db.platforms)
 
@@ -75,21 +77,23 @@ def slack_action():
         return Response(response='Invalid request'), 200
 
     event = json.loads(request.form['payload'])
-    user = create_user(event['user'])
+    user = create_user(event['user']["id"])
+
+    if not user:
+        return Response(response="User not found"), 200
+
     trigger_id = event["trigger_id"]
-    actions = event["actions"]
+    action_event = event["actions"][0]
 
     #check what action prompted the event
-    for single_action in actions:
-        action = Action(single_action, trigger_id)
+    action = Action(action_event, trigger_id)
 
-        #create proper modal
-        modal = slack_home.create_modal(action, user, db.platforms)
+    #create proper modal
+    modal = action.get_modal()
 
-        #send up the modal
-        if not modal:
-            continue
-        lib.slack_client.publish_view(user.id, modal)
+    #send up the modal
+    if modal:
+        lib.slack_client.open_modal(action.trigger_id, modal)
 
     return Response(), 200
 
@@ -126,7 +130,11 @@ def release_bot_commands():
 
 def create_user(slack_id: str) -> lib.User:
     """Create a new User object."""
-    user: lib.User = lib.slack_client.new_slack_user(slack_id)
+    try:
+        user: lib.User = lib.slack_client.new_slack_user(slack_id)
+    except lib.UserNotFound:
+        return None
+
     user.is_admin = user.id in db.admin_ids
     user.owned_platforms = db.get_owner_platforms(user.id)
     user.subscriptions = db.get_user_subscriptions(user.id)

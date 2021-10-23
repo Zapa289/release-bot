@@ -25,7 +25,12 @@ def is_valid_request(event: Request) -> bool:
 
 def new_slack_user(slack_id: str) -> User:
     """Get user info from Slack"""
-    profile = get_slack_info(slack_id)
+    try:
+        profile = get_slack_info(slack_id)
+    except UserNotFound as error:
+        print(error)
+        raise error
+
     user_id = profile["id"]
     email = profile["profile"]["email"]
     name = profile["real_name"]
@@ -37,10 +42,11 @@ def get_slack_info(user_id: str) -> dict[str, str]:
     try:
         user_info = client.users_info(user=user_id)
     except SlackApiError as error:
+        error_response = error.response['error']
         print(error.response)
 
     if not user_info.get('ok'):
-        raise UserNotFound(user_id=user_id, message=f"User ({user_id}) could not be found. Error: {user_info.get('error')}")
+        raise UserNotFound(user_id=user_id, message=f"User ({user_id}) could not be found. Error: {error_response}")
 
     return user_info.get('user')
 
@@ -58,7 +64,7 @@ def create_new_release_channel(channel_name: str) -> str:
     try:
         response = client.conversations_create(name=channel_name)
     except SlackApiError as error:
-        print(error.response)
+        print(error)
 
     if not response["ok"]:
         #do some logging
@@ -67,6 +73,15 @@ def create_new_release_channel(channel_name: str) -> str:
 
     channel = response["channel"]
     return channel['id']
+
+def open_modal(trigger_id, modal):
+    """Opens a modal"""
+    try:
+        response = client.views_open(trigger_id=trigger_id, view=modal)
+    except SlackApiError as error:
+        print(error.response)
+
+
 
 class UserNotFound(Exception):
     """Custom exception for when Slack users_info """
