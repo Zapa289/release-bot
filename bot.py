@@ -61,7 +61,7 @@ def app_home_opened(payload):
     user_id = event.get('user')
     user = create_user(user_id)
 
-    home_blocks = slack_home.get_home_tab(user, db)
+    home_blocks = slack_home.get_home_tab(user, db.platforms)
 
     lib.slack_client.publish_view(user_id, home_blocks)
 
@@ -84,10 +84,11 @@ def slack_action():
         action = Action(single_action, trigger_id)
 
         #create proper modal
-        modal = slack_home.create_modal(action, user)
-
+        modal = slack_home.create_modal(action, user, db.platforms)
 
         #send up the modal
+        if not modal:
+            continue
         lib.slack_client.publish_view(user.id, modal)
 
     return Response(), 200

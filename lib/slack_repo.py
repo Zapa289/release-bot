@@ -27,7 +27,6 @@ NEW_SUBSCRIPTION_BUTTON = {
 			]
 		}
 
-SUB_ACTION_BASE = "edit_subscription_"
 SUBSCRIPTION_BUTTON = {
 			"type": "section",
 			"text": {
@@ -90,7 +89,7 @@ EDIT_SUB_MODAL = {
 						"text": ":x: Unsubscribe",
 						"emoji": True
 					},
-					"value": "unsubscribe",
+					"value": "ROM FAMILY",
 					"action_id": "unsubscribe",
 					"style": "danger"
 				}
@@ -136,7 +135,6 @@ NEW_SUB_MODAL = {
 	]
 }
 
-NEW_SUB_VALUE_BASE = "new_subscription_"
 NEW_SUB_CHECKBOX = {
 						"text": {
 							"type": "mrkdwn",
@@ -146,5 +144,5 @@ NEW_SUB_CHECKBOX = {
 							"type": "mrkdwn",
 							"text": "DESCRIPTION"
 						},
-						"value": "NEW SUB VALUE"
+						"value": "ROM FAMILY"
 					}
