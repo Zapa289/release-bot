@@ -1,13 +1,14 @@
 import os
+from pathlib import Path
+
 from flask.wrappers import Request
 from slack import WebClient
 from slack.errors import SlackApiError
-from lib.user import User
+from dotenv import load_dotenv
 
+from lib.user import User
 from slack.signature.verifier import SignatureVerifier
 
-from pathlib import Path
-from dotenv import load_dotenv
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
 

@@ -2,11 +2,12 @@
 import os
 import json
 from pathlib import Path
+
 from flask import Flask, request, Response
 from slackeventsapi import SlackEventAdapter
 from dotenv import load_dotenv
+
 import slack_home
-from slack_home import Action
 import lib
 from db_manager import SQLiteDatabaseAccess
 
@@ -86,10 +87,14 @@ def slack_action():
     action_event = event["actions"][0]
 
     #check what action prompted the event
-    action = Action(action_event, trigger_id)
+    action = lib.Action(action_event, trigger_id, user)
 
     #create proper modal
-    modal = action.get_modal()
+    try:
+        modal = lib.modal_creation_func[action.action_id](action, platforms=db.platforms)
+    except KeyError:
+        print(f"Unknown action_id: {action.action_id}")
+        return Response(response=f"Unknown action_id: {action.action_id}"), 200
 
     #send up the modal
     if modal:

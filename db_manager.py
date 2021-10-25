@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+
 import sqlite3
 from sqlite3.dbapi2 import Connection, Cursor
+
 from lib.platform import Platform, PlatformNotFound
 
 class DatabaseAccess(ABC):

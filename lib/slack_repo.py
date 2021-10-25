@@ -116,33 +116,40 @@ NEW_SUB_MODAL = {
 	},
 	"blocks": [
 		{
-			"type": "divider"
-		},
-		{
-			"type": "section",
-			"text": {
-				"type": "mrkdwn",
-				"text": ":memo: Check all platforms you'd like to subscribe to:"
-			},
-			"accessory": {
-				"type": "checkboxes",
+			"type": "input",
+			"element": {
+				"type": "static_select",
+				"placeholder": {
+					"type": "plain_text",
+					"text": "Select an item",
+					"emoji": True
+				},
 				"options": [
-					"PUT CHECKBOXES HERE"
+					{
+						"text": {
+							"type": "plain_text",
+							"text": "PUT OPTIONS HERE",
+							"emoji": True
+						},
+						"value": "value-0"
+					}
 				],
-				"action_id": "new_sub_checkbox"
+				"action_id": "static_select-action"
+			},
+			"label": {
+				"type": "plain_text",
+				"text": ":memo: Select a platform you'd like to subscribe to:",
+				"emoji": True
 			}
 		}
 	]
 }
 
-NEW_SUB_CHECKBOX = {
-						"text": {
-							"type": "mrkdwn",
-							"text": "ROM FAMILY"
-						},
-						"description": {
-							"type": "mrkdwn",
-							"text": "DESCRIPTION"
-						},
-						"value": "ROM FAMILY"
-					}
+NEW_SUB_OPTION = {
+					"text": {
+						"type": "plain_text",
+						"text": "ROM FAMILY : DESCRIPTION",
+						"emoji": True
+					},
+					"value": "ROM FAMILY"
+				}

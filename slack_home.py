@@ -1,4 +1,5 @@
 import json
+
 from lib.platform import Platform
 import lib.slack_repo as sr
 from lib.user import User
