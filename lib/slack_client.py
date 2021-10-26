@@ -35,6 +35,7 @@ def new_slack_user(slack_id: str) -> User:
     user_id = profile["id"]
     email = profile["profile"]["email"]
     name = profile["real_name"]
+
     return User(id=user_id, name=name, email=email)
 
 def get_slack_info(user_id: str) -> dict[str, str]:
@@ -47,7 +48,7 @@ def get_slack_info(user_id: str) -> dict[str, str]:
         print(error.response)
 
     if not user_info.get('ok'):
-        raise UserNotFound(user_id=user_id, message=f"User ({user_id}) could not be found. Error: {error_response}")
+        raise UserNotFound(user_id=user_id)
 
     return user_info.get('user')
 
@@ -86,9 +87,9 @@ def open_modal(trigger_id, modal):
 
 class UserNotFound(Exception):
     """Custom exception for when Slack users_info """
-    def __init__(self, user_id: str, message: str ='Could not find user.'):
+    def __init__(self, user_id: str):
         self.user_id = user_id
-        self.message = message
+        self.message = f"User ({self.user_id}) could not be found"
         super().__init__(self.message)
 
 class SlackResponseError(Exception):

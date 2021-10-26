@@ -1,4 +1,5 @@
-from lib import Action, slack_client, modal_creation_func, User
+from lib import Action, slack_client, modal_creation_func, User, UserNotFound
+import slack_home as home
 from db_manager import DatabaseAccess
 
 class ReleaseBot:
@@ -10,13 +11,14 @@ class ReleaseBot:
             'view_submission' : self.process_view_submission
         }
 
-    def process_block_action(self, event, user: User):
+    def process_block_action(self, event):
         """Process a user action"""
         #check what action prompted the event
         action_event = event["actions"][0]
         trigger_id = event['trigger_id']
+        user_id = event['user']
 
-        action = Action(action_event, trigger_id, user)
+        action = Action(action_event, trigger_id)
 
         #create proper modal
         try:
@@ -33,6 +35,18 @@ class ReleaseBot:
         """Process a view submission"""
         pass
 
+    def get_home_tab(self, event) -> dict:
+        """Get the home tab for a user"""
+        home_blocks = {}
+        user_id = event.get('user')
+        user = self.create_user(user_id)
+        if not user:
+            raise UserNotFound(user_id=user_id)
+
+        home_blocks = home.get_home_tab(user, self.db.platforms)
+
+        return home_blocks
+
     def create_user(self, slack_id: str) -> User:
         """Create a new User object."""
         try:
@@ -46,7 +60,11 @@ class ReleaseBot:
 
         return user
 
-    def process_event(self, event):
+    def process_event(self, event) -> str:
         """Process slack event"""
+        response = ""
+
         event_type = event["type"]
-        self.process_event_func[event_type](event)
+        response = self.process_event_func[event_type](event)
+
+        return response
