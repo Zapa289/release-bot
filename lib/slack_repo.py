@@ -134,7 +134,7 @@ NEW_SUB_MODAL = {
 						"value": "value-0"
 					}
 				],
-				"action_id": "static_select-action"
+				"action_id": "new_subscription_select"
 			},
 			"label": {
 				"type": "plain_text",

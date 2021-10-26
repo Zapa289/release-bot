@@ -8,9 +8,9 @@ from slackeventsapi import SlackEventAdapter
 from dotenv import load_dotenv
 
 import slack_home
-import lib
+from lib import slack_client
 from db_manager import SQLiteDatabaseAccess
-
+from slack_action import ReleaseBot
 
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
@@ -20,7 +20,10 @@ APP_ID = "A026U9M6F2M"
 
 app = Flask(__name__)
 slack_event_adapter = SlackEventAdapter(os.environ['SLACKBOT_SIGNING_SECRET'], '/slack/events', app)
-db = SQLiteDatabaseAccess('test.db')
+
+database = SQLiteDatabaseAccess('test.db')
+
+bot = ReleaseBot(database)
 
 # @slack_event_adapter.on('message')
 # def message_received(payload):
@@ -66,85 +69,22 @@ def app_home_opened(payload):
 
     home_blocks = slack_home.get_home_tab(user, db.platforms)
 
-    lib.slack_client.publish_view(user_id, home_blocks)
+    slack_client.publish_view(user_id, home_blocks)
 
     return Response(), 200
 
 @app.route('/actions', methods=['POST'])
-def slack_action():
+def slack_action_entry():
     """Handles all actions from users"""
 
-    if not lib.slack_client.is_valid_request(request):
+    if not slack_client.is_valid_request(request):
         return Response(response='Invalid request'), 200
 
     event = json.loads(request.form['payload'])
-    user = create_user(event['user']["id"])
 
-    if not user:
-        return Response(response="User not found"), 200
-
-    trigger_id = event["trigger_id"]
-    action_event = event["actions"][0]
-
-    #check what action prompted the event
-    action = lib.Action(action_event, trigger_id, user)
-
-    #create proper modal
-    try:
-        modal = lib.modal_creation_func[action.action_id](action, platforms=db.platforms)
-    except KeyError:
-        print(f"Unknown action_id: {action.action_id}")
-        return Response(response=f"Unknown action_id: {action.action_id}"), 200
-
-    #send up the modal
-    if modal:
-        lib.slack_client.open_modal(action.trigger_id, modal)
+    bot.process_event(event)
 
     return Response(), 200
-
-@app.route('/release-bot', methods=['POST'])
-def release_bot_commands():
-    """Handles all commands from general users/owners"""
-
-    if not lib.slack_client.is_valid_request(request):
-        return Response(response='Invalid request'), 200
-    return Response(), 200
-
-    # event = request.form.to_dict()
-    # user_data = event['text']
-    # user_id = event['user_id']
-
-    # owner = create_user(user_id)
-    # user = None
-    # platform = None
-
-    # command = manager.CommandData(
-    #     AuthOwner(owner, platform),
-    #     owner,
-    #     user,
-    #     platform
-    #     )
-    # if 'help' in user_data:
-    #     response = Response()
-
-    # try:
-    #     manager.register_owner(command)
-    # except UnauthorizedAction as error:
-    #     # Do error stuff (send an ephemeral message to the user perhaps)
-    #     print(error.message)
-
-def create_user(slack_id: str) -> lib.User:
-    """Create a new User object."""
-    try:
-        user: lib.User = lib.slack_client.new_slack_user(slack_id)
-    except lib.UserNotFound:
-        return None
-
-    user.is_admin = user.id in db.admin_ids
-    user.owned_platforms = db.get_owner_platforms(user.id)
-    user.subscriptions = db.get_user_subscriptions(user.id)
-
-    return user
 
 def main():
     """Start the bot"""
